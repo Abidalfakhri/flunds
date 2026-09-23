@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class RunwayCard extends StatelessWidget {
   final int runwayDays;
@@ -16,24 +17,40 @@ class RunwayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PlaceholderBox(label: 'RunwayCard (Anggota B)');
-  }
-}
-
-class _PlaceholderBox extends StatelessWidget {
-  final String label;
-  const _PlaceholderBox({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(8),
+        color: FlundsColors.runwayBg,
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(label, style: const TextStyle(color: Colors.grey)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Runway saat ini',
+              style: TextStyle(fontSize: 12, color: FlundsColors.primary)),
+          const SizedBox(height: 4),
+          Text('$runwayDays hari',
+              style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                  color: FlundsColors.primary)),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.white,
+              valueColor:
+              const AlwaysStoppedAnimation<Color>(FlundsColors.primary),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Status: $statusLabel · ambang batas $thresholdDays hari',
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+        ],
+      ),
     );
   }
 }

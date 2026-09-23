@@ -6,24 +6,29 @@ class GreetingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PlaceholderBox(label: 'GreetingHeader (Anggota C)');
-  }
-}
-
-class _PlaceholderBox extends StatelessWidget {
-  final String label;
-  const _PlaceholderBox({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey, style: BorderStyle.solid),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(label, style: const TextStyle(color: Colors.grey)),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Halo, $userName',
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 2),
+            const Text('Flunds',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+          ],
+        ),
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.notifications_none, color: Colors.black54),
+        ),
+      ],
     );
   }
 }

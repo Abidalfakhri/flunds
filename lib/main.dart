@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
-import 'screens/dashboard_screen.dart';
+import 'widgets/app_shell.dart';
 
 void main() {
   runApp(const FlundsApp());
@@ -15,7 +15,7 @@ class FlundsApp extends StatelessWidget {
       title: 'Flunds',
       debugShowCheckedModeBanner: false,
       theme: FlundsTheme.light,
-      home: const DashboardScreen(),
+      home: const AppShell(),
     );
   }
 }

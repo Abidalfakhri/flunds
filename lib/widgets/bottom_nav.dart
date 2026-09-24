@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 class FlundsBottomNav extends StatelessWidget {
-  const FlundsBottomNav({super.key});
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+
+  const FlundsBottomNav({super.key, required this.currentIndex, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -11,12 +14,12 @@ class FlundsBottomNav extends StatelessWidget {
       notchMargin: 8,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: const [
-          _NavIcon(icon: Icons.home_filled, active: true),
-          _NavIcon(icon: Icons.list_alt, active: false),
-          SizedBox(width: 40),
-          _NavIcon(icon: Icons.bar_chart, active: false),
-          _NavIcon(icon: Icons.person_outline, active: false),
+        children: [
+          _NavIcon(icon: Icons.home_filled, active: currentIndex == 0, onTap: () => onTap(0)),
+          _NavIcon(icon: Icons.list_alt, active: currentIndex == 1, onTap: () => onTap(1)),
+          const SizedBox(width: 40),
+          _NavIcon(icon: Icons.bar_chart, active: currentIndex == 2, onTap: () => onTap(2)),
+          _NavIcon(icon: Icons.account_balance_wallet, active: currentIndex == 3, onTap: () => onTap(3)),
         ],
       ),
     );
@@ -26,13 +29,11 @@ class FlundsBottomNav extends StatelessWidget {
 class _NavIcon extends StatelessWidget {
   final IconData icon;
   final bool active;
-  const _NavIcon({required this.icon, required this.active});
+  final VoidCallback onTap;
+  const _NavIcon({required this.icon, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
-      icon,
-      color: active ? FlundsColors.primary : Colors.grey,
-    );
+    return IconButton(icon: Icon(icon, color: active ? FlundsColors.primary : Colors.grey), onPressed: onTap);
   }
 }

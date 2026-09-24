@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import 'stat_card.dart';
 
 class CashSummaryRow extends StatelessWidget {
@@ -16,12 +17,24 @@ class CashSummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: const [
-        Expanded(child: StatCard(label: 'Saldo', value: '-')),
-        SizedBox(width: 8),
-        Expanded(child: StatCard(label: 'Masuk', value: '-')),
-        SizedBox(width: 8),
-        Expanded(child: StatCard(label: 'Keluar', value: '-')),
+      children: [
+        Expanded(child: StatCard(label: 'Saldo kas', value: balance)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: StatCard(
+            label: 'Masuk bln ini',
+            value: inflow,
+            valueColor: FlundsColors.income,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: StatCard(
+            label: 'Keluar bln ini',
+            value: outflow,
+            valueColor: FlundsColors.expense,
+          ),
+        ),
       ],
     );
   }

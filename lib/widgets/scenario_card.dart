@@ -17,36 +17,40 @@ class ScenarioCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEDEDED)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FlundsColors.surfaceLine),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
+          Text(label, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Sebelum', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                    Text('$runwayBefore hari', style: const TextStyle(fontSize: 16)),
+                    Text('Sebelum', style: Theme.of(context).textTheme.bodySmall),
+                    Text('$runwayBefore hari', style: Theme.of(context).textTheme.titleMedium),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
+              const Icon(Icons.arrow_forward, size: 16, color: FlundsColors.textMuted),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Sesudah', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                    Text('$runwayAfter hari', style: const TextStyle(fontSize: 16)),
+                    Text('Sesudah', style: Theme.of(context).textTheme.bodySmall),
+                    Text('$runwayAfter hari', style: Theme.of(context).textTheme.titleMedium),
                   ],
                 ),
               ),
-              Text('${delta > 0 ? '+' : ''}$delta hari', style: TextStyle(color: deltaColor, fontWeight: FontWeight.w600)),
+              Text(
+                '${delta > 0 ? '+' : ''}$delta hari',
+                style: TextStyle(color: deltaColor, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ],

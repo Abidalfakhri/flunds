@@ -15,7 +15,7 @@ class ProfileSettingsScreen extends StatelessWidget {
         listenable: appData,
         builder: (context, _) {
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 90),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 640),

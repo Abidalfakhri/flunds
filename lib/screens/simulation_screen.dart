@@ -69,23 +69,25 @@ class _SimulationScreenState extends State<SimulationScreen> {
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 720),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
                 child: context.isExpanded
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: _buildForm(context)),
-                          const SizedBox(width: 20),
-                          Expanded(child: _buildScenarioList(context)),
-                        ],
+                    ? IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: _buildForm(context)),
+                            const SizedBox(width: 20),
+                            Expanded(child: _buildScenarioList(context)),
+                          ],
+                        ),
                       )
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildForm(context),
                           const SizedBox(height: 20),
-                          Expanded(child: _buildScenarioList(context)),
+                          _buildScenarioList(context),
                         ],
                       ),
               ),

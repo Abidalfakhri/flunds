@@ -209,6 +209,42 @@ class AppData extends ChangeNotifier {
     return (surplus * ownerCutPercentage).round();
   }
 
+  List<MapEntry<Category, int>> categoryBreakdown(CategoryType type, {bool thisMonthOnly = false}) {
+    final totals = <String, int>{};
+    for (final t in _transactions) {
+      final cat = categoryById(t.categoryId);
+      if (cat.type != type) continue;
+      if (thisMonthOnly && !_isThisMonth(t.date)) continue;
+      totals[cat.id] = (totals[cat.id] ?? 0) + t.amount;
+    }
+    final entries = totals.entries.map((e) => MapEntry(categoryById(e.key), e.value)).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return entries;
+  }
+
+  Map<DateTime, int> netCashflowByDay(int days) {
+    final now = DateTime.now();
+    final result = <DateTime, int>{};
+    for (int i = days - 1; i >= 0; i--) {
+      result[DateTime(now.year, now.month, now.day - i)] = 0;
+    }
+    for (final t in _transactions) {
+      final day = DateTime(t.date.year, t.date.month, t.date.day);
+      if (result.containsKey(day)) {
+        result[day] = result[day]! + _signedAmount(t);
+      }
+    }
+    return result;
+  }
+
+  int get personalOutflow => _transactions
+      .where((t) => t.isPersonal && !categoryById(t.categoryId).isIncome)
+      .fold<int>(0, (sum, t) => sum + t.amount);
+
+  int get businessOutflow => _transactions
+      .where((t) => !t.isPersonal && !categoryById(t.categoryId).isIncome)
+      .fold<int>(0, (sum, t) => sum + t.amount);
+
   void _seedCategories() {
     _categories.addAll(const [
       Category(id: 'cat-penjualan-online', name: 'Penjualan Online', type: CategoryType.income, icon: Icons.storefront_outlined, color: Color(0xFF2F7A4D)),

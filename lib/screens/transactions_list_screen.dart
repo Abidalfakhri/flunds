@@ -6,7 +6,6 @@ import '../utils/responsive.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/transaction_tile.dart';
 import 'transaction_detail_screen.dart';
-import 'transaction_form_screen.dart';
 
 class TransactionsListScreen extends StatefulWidget {
   const TransactionsListScreen({super.key});
@@ -113,13 +112,6 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
             ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab-transactions',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionFormScreen())),
-        backgroundColor: FlundsColors.accent,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Catat', style: TextStyle(color: Colors.white)),
       ),
     );
   }

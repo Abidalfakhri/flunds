@@ -20,14 +20,17 @@ class GreetingHeader extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Halo, $userName', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 2),
-            Text(businessName, style: Theme.of(context).textTheme.headlineSmall),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Halo, $userName', style: Theme.of(context).textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 2),
+              Text(businessName, style: Theme.of(context).textTheme.headlineSmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ],
+          ),
         ),
+        const SizedBox(width: 12),
         GestureDetector(
           onTap: onAvatarTap,
           child: Container(

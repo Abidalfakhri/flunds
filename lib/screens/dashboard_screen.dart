@@ -26,9 +26,11 @@ class DashboardScreen extends StatelessWidget {
           builder: (context, _) {
             final recent = appData.recentTransactions;
             return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: context.isExpanded ? 32 : 18,
-                vertical: 14,
+              padding: EdgeInsets.fromLTRB(
+                context.isExpanded ? 32 : 18,
+                14,
+                context.isExpanded ? 32 : 18,
+                90,
               ),
               child: ContentBounds(
                 maxWidth: context.isExpanded ? 980 : 720,

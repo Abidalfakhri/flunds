@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/transactions_list_screen.dart';
-import 'package:flutter/material.dart';
-import '../screens/dashboard_screen.dart';
-import '../screens/transactions_list_screen.dart';
 import '../screens/analysis_screen.dart';
-import '../screens/simulation_screen.dart';
-import '../screens/profile_settings_screen.dart';
-import '../screens/transaction_form_screen.dart';
 import '../screens/simulation_screen.dart';
 import '../screens/profile_settings_screen.dart';
 import '../screens/transaction_form_screen.dart';
@@ -29,11 +23,7 @@ class _AppShellState extends State<AppShell> {
   final List<Widget> _screens = const [
     DashboardScreen(),
     TransactionsListScreen(),
-    DashboardScreen(),
-    TransactionsListScreen(),
     AnalysisScreen(),
-    SimulationScreen(),
-    ProfileSettingsScreen(),
     SimulationScreen(),
     ProfileSettingsScreen(),
   ];

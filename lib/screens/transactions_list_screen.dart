@@ -17,6 +17,13 @@ class TransactionsListScreen extends StatefulWidget {
 class _TransactionsListScreenState extends State<TransactionsListScreen> {
   String _categoryFilter = 'Semua';
   String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<TransactionItem> _apply(List<TransactionItem> items) {
     var result = items;
@@ -47,10 +54,21 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 child: ContentBounds(
                   maxWidth: 820,
                   child: TextField(
+                    controller: _searchController,
                     onChanged: (v) => setState(() => _query = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cari transaksi...',
-                      prefixIcon: Icon(Icons.search, size: 20),
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: 'Bersihkan pencarian',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
                     ),
                   ),
                 ),

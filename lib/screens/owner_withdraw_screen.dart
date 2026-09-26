@@ -71,6 +71,7 @@ class _OwnerWithdrawScreenState extends State<OwnerWithdrawScreen> {
                     TextFormField(
                       controller: _controller,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [AmountInputFormatter()],
                       onChanged: _cek,
                       decoration: const InputDecoration(labelText: 'Nominal penarikan', prefixText: 'Rp '),
                       validator: (v) {

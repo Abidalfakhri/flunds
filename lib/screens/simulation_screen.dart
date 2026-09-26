@@ -122,6 +122,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           TextFormField(
             controller: _nominalController,
             keyboardType: TextInputType.number,
+            inputFormatters: [AmountInputFormatter()],
             decoration: const InputDecoration(labelText: 'Nominal rencana pengeluaran', prefixText: 'Rp '),
             validator: (v) {
               final n = int.tryParse((v ?? '').replaceAll(RegExp(r'[^0-9]'), ''));

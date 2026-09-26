@@ -10,12 +10,12 @@ class AppData extends ChangeNotifier {
     _seedTransactions();
   }
 
-  String ownerName = 'Rani Puspita';
-  String businessName = 'Dapur Rani Catering';
-  String businessType = 'Katering & jajanan rumahan';
+  String ownerName = 'Deryl';
+  String businessName = 'Zico';
+  String businessType = 'Fashion & Accessories';
   int runwayThresholdDays = 30;
   double ownerCutPercentage = 0.15;
-  int startingBalance = 6500000;
+  int startingBalance = 0;
 
   void updateProfile({
     String? ownerName,

@@ -10,6 +10,8 @@ class FlundsBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // flundsDestinations has exactly 4 items, so this is always an even 2/2
+    // split around the FAB notch.
     final leftCount = (flundsDestinations.length / 2).ceil();
 
     return BottomAppBar(

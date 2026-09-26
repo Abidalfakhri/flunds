@@ -3,6 +3,7 @@ import '../data/app_data.dart';
 import '../models/category.dart';
 import '../models/transaction_item.dart';
 import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
 import '../utils/responsive.dart';
 import 'category_form_screen.dart';
 
@@ -33,7 +34,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final existing = widget.existing;
     if (existing != null) {
       _titleController.text = existing.title;
-      _amountController.text = existing.amount.toString();
+      _amountController.text = groupThousands(existing.amount);
       _noteController.text = existing.note;
       _categoryId = existing.categoryId;
       _date = existing.date;
@@ -140,6 +141,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     TextFormField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [AmountInputFormatter()],
                       decoration: const InputDecoration(labelText: 'Nominal', prefixText: 'Rp '),
                       validator: (v) {
                         final n = int.tryParse((v ?? '').replaceAll(RegExp(r'[^0-9]'), ''));

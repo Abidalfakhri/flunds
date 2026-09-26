@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 class GreetingHeader extends StatelessWidget {
   final String userName;
-  const GreetingHeader({super.key, required this.userName});
+  final String businessName;
+  final VoidCallback? onAvatarTap;
+
+  const GreetingHeader({
+    super.key,
+    required this.userName,
+    required this.businessName,
+    this.onAvatarTap,
+  });
+
+  String get _initial => userName.trim().isEmpty ? '?' : userName.trim()[0].toUpperCase();
 
   @override
   Widget build(BuildContext context) {
@@ -12,21 +23,30 @@ class GreetingHeader extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Halo, $userName',
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            Text('Halo, $userName', style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 2),
-            const Text('Flunds',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+            Text(businessName, style: Theme.of(context).textTheme.headlineSmall),
           ],
         ),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            shape: BoxShape.circle,
+        GestureDetector(
+          onTap: onAvatarTap,
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [FlundsColors.accent, FlundsColors.primary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _initial,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+            ),
           ),
-          child: const Icon(Icons.notifications_none, color: Colors.black54),
         ),
       ],
     );

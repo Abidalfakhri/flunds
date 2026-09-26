@@ -28,6 +28,8 @@ class FlundsBottomNav extends StatelessWidget {
             _NavIcon(destination: flundsDestinations[i], active: currentIndex == i, onTap: () => onTap(i)),
         ],
       ),
+        ],
+      ),
     );
   }
 }
@@ -54,13 +56,13 @@ class _NavIcon extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(active ? destination.activeIcon : destination.icon, color: color, size: 21),
+              Icon(active ? destination.activeIcon : destination.icon, color: color, size: 22),
               const SizedBox(height: 3),
               Text(
                 destination.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600, height: 1.0),
+                style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.w600, height: 1.0),
               ),
             ],
           ),

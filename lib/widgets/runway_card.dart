@@ -15,40 +15,84 @@ class RunwayCard extends StatelessWidget {
     required this.statusLabel,
   });
 
+  Color get _statusColor {
+    if (statusLabel == 'Sehat') return FlundsColors.income;
+    if (statusLabel == 'Aman') return FlundsColors.primary;
+    return FlundsColors.expense;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: FlundsColors.runwayBg,
-        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [FlundsColors.primary, FlundsColors.primaryDark],
+        ),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Runway saat ini',
-              style: TextStyle(fontSize: 12, color: FlundsColors.primary)),
-          const SizedBox(height: 4),
-          Text('$runwayDays hari',
-              style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: FlundsColors.primary)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'RUNWAY KAS SAAT INI',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.white70,
+                      letterSpacing: 0.6,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(color: _statusColor == FlundsColors.expense ? Colors.orangeAccent : Colors.lightGreenAccent, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(statusLabel, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '$runwayDays ', style: Theme.of(context).textTheme.displaySmall?.copyWith(color: Colors.white)),
+                const TextSpan(text: 'hari', style: TextStyle(color: Colors.white70, fontSize: 16)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
-              backgroundColor: Colors.white,
-              valueColor:
-              const AlwaysStoppedAnimation<Color>(FlundsColors.primary),
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ),
-          const SizedBox(height: 8),
-          Text('Status: $statusLabel · ambang batas $thresholdDays hari',
-              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          const SizedBox(height: 10),
+          Text(
+            'Ambang batas aman: $thresholdDays hari — bisa diubah di Profil',
+            style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+          ),
         ],
       ),
     );

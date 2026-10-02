@@ -6,7 +6,6 @@ import '../utils/responsive.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/transaction_tile.dart';
 import 'transaction_detail_screen.dart';
-import 'transaction_form_screen.dart';
 
 class TransactionsListScreen extends StatefulWidget {
   const TransactionsListScreen({super.key});
@@ -17,12 +16,25 @@ class TransactionsListScreen extends StatefulWidget {
 
 class _TransactionsListScreenState extends State<TransactionsListScreen> {
   String _categoryFilter = 'Semua';
+  String _scope = 'Semua';
   String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<TransactionItem> _apply(List<TransactionItem> items) {
     var result = items;
     if (_categoryFilter != 'Semua') {
       result = result.where((t) => appData.categoryById(t.categoryId).name == _categoryFilter).toList();
+    }
+    if (_scope == 'Bisnis') {
+      result = result.where((t) => !t.isPersonal).toList();
+    } else if (_scope == 'Pribadi') {
+      result = result.where((t) => t.isPersonal).toList();
     }
     if (_query.trim().isNotEmpty) {
       final q = _query.trim().toLowerCase();
@@ -48,10 +60,39 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 child: ContentBounds(
                   maxWidth: 820,
                   child: TextField(
+                    controller: _searchController,
                     onChanged: (v) => setState(() => _query = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cari transaksi...',
-                      prefixIcon: Icon(Icons.search, size: 20),
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: 'Bersihkan pencarian',
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _query = '');
+                              },
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: ContentBounds(
+                  maxWidth: 820,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'Semua', label: Text('Semua dana')),
+                        ButtonSegment(value: 'Bisnis', label: Text('Bisnis')),
+                        ButtonSegment(value: 'Pribadi', label: Text('Pribadi')),
+                      ],
+                      selected: {_scope},
+                      onSelectionChanged: (s) => setState(() => _scope = s.first),
                     ),
                   ),
                 ),
@@ -113,13 +154,6 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
             ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab-transactions',
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionFormScreen())),
-        backgroundColor: FlundsColors.accent,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Catat', style: TextStyle(color: Colors.white)),
       ),
     );
   }

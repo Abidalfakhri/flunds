@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data.dart';
 import '../models/category.dart';
 import '../theme/app_theme.dart';
+import '../utils/formatters.dart';
 
 const _iconChoices = [
   Icons.storefront_outlined,
@@ -29,7 +30,12 @@ const _colorChoices = [
 class CategoryFormScreen extends StatefulWidget {
   final Category? existing;
 
-  const CategoryFormScreen({super.key, this.existing});
+  /// Preselects income/expense when creating a brand-new category (e.g.
+  /// from inside the transaction form) so the owner doesn't have to
+  /// re-select something they already told the app.
+  final CategoryType? initialType;
+
+  const CategoryFormScreen({super.key, this.existing, this.initialType});
 
   bool get isEditing => existing != null;
 
@@ -40,6 +46,7 @@ class CategoryFormScreen extends StatefulWidget {
 class _CategoryFormScreenState extends State<CategoryFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _budgetController = TextEditingController();
   CategoryType _type = CategoryType.expense;
   late IconData _icon;
   late Color _color;
@@ -53,22 +60,44 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
     if (existing != null) {
       _nameController.text = existing.name;
       _type = existing.type;
+      if (existing.hasBudget) _budgetController.text = groupThousands(existing.monthlyBudget!);
+    } else if (widget.initialType != null) {
+      _type = widget.initialType!;
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _budgetController.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    final budgetDigits = _budgetController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final budget = (_type == CategoryType.expense && budgetDigits.isNotEmpty) ? int.parse(budgetDigits) : null;
 
     if (widget.isEditing) {
-      appData.updateCategory(
-        widget.existing!.copyWith(name: _nameController.text, type: _type, icon: _icon, color: _color),
+      final result = appData.updateCategory(
+        widget.existing!.copyWith(
+          name: _nameController.text,
+          type: _type,
+          icon: _icon,
+          color: _color,
+          monthlyBudget: budget,
+          clearBudget: budget == null,
+        ),
       );
+      if (result == UpdateCategoryResult.typeInUse) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Jenis kategori tidak bisa diubah karena sudah dipakai transaksi. Buat kategori baru jika ingin mengganti pemasukan/pengeluaran.'),
+          ),
+        );
+        return;
+      }
+      if (result != UpdateCategoryResult.success) return;
       Navigator.pop(context);
     } else {
       final created = appData.addCategory(
@@ -77,6 +106,9 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
         icon: _icon,
         color: _color,
       );
+      if (budget != null) {
+        appData.setCategoryBudget(created.id, budget);
+      }
       Navigator.pop(context, created);
     }
   }
@@ -109,12 +141,26 @@ class _CategoryFormScreenState extends State<CategoryFormScreen> {
                 const SizedBox(height: 8),
                 SegmentedButton<CategoryType>(
                   segments: const [
-                    ButtonSegment(value: CategoryType.income, label: Text('Pemasukan'), icon: Icon(Icons.south_west_rounded, size: 16)),
-                    ButtonSegment(value: CategoryType.expense, label: Text('Pengeluaran'), icon: Icon(Icons.north_east_rounded, size: 16)),
+                    ButtonSegment(value: CategoryType.income, label: Text('Masuk'), icon: Icon(Icons.south_west_rounded, size: 16)),
+                    ButtonSegment(value: CategoryType.expense, label: Text('Keluar'), icon: Icon(Icons.north_east_rounded, size: 16)),
                   ],
                   selected: {_type},
                   onSelectionChanged: (s) => setState(() => _type = s.first),
                 ),
+                if (_type == CategoryType.expense) ...[
+                  const SizedBox(height: 18),
+                  TextFormField(
+                    controller: _budgetController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [AmountInputFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'Anggaran bulanan (opsional)',
+                      prefixText: 'Rp ',
+                      helperText: 'Isi supaya Flunds bisa mengingatkan kalau pengeluaran kategori ini mendekati batas.',
+                      helperMaxLines: 2,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Text('Ikon', style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: 8),

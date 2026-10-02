@@ -19,6 +19,9 @@ class FlundsColors {
   static const expense = Color(0xFFC1533A);
   static const expenseSoft = Color(0xFFF8E3DE);
 
+  static const warning = Color(0xFFB2790A);
+  static const warningSoft = Color(0xFFFBEBD2);
+
   static const scaffoldBg = Color(0xFFFBF8F3);
   static const surface = Color(0xFFFFFFFF);
   static const surfaceLine = Color(0xFFEDE7DB);

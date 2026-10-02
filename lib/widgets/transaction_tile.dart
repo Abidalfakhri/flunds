@@ -56,9 +56,12 @@ class TransactionTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              '$sign${formatRupiahCompact(item.amount)}',
-              style: TextStyle(color: amountColor, fontWeight: FontWeight.w700, fontSize: 13.5),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '$sign${formatRupiahCompact(item.amount)}',
+                style: TextStyle(color: amountColor, fontWeight: FontWeight.w700, fontSize: 13.5),
+              ),
             ),
           ],
         ),

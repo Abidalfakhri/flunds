@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../data/app_data.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
-import '../utils/responsive.dart';
 import '../widgets/confirm_dialog.dart';
+import 'receipt_screen.dart';
 import 'transaction_form_screen.dart';
 
 class TransactionDetailScreen extends StatelessWidget {
@@ -62,7 +62,21 @@ class TransactionDetailScreen extends StatelessWidget {
                   _DetailRow(label: 'Tanggal', value: formatDateFull(item.date)),
                   _DetailRow(label: 'Jenis dana', value: item.isPersonal ? 'Pribadi (owner)' : 'Bisnis'),
                   if (item.note.trim().isNotEmpty) _DetailRow(label: 'Catatan', value: item.note),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
+                  if (isIncome) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ReceiptScreen(transaction: item)),
+                        ),
+                        icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                        label: const Text('Buat Nota / Bukti Pembayaran'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   Row(
                     children: [
                       Expanded(

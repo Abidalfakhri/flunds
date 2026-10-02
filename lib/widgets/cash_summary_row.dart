@@ -16,28 +16,33 @@ class CashSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: StatCard(label: 'Saldo kas', value: balance, icon: Icons.account_balance_wallet_outlined)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: StatCard(
-            label: 'Masuk bln ini',
-            value: inflow,
-            valueColor: FlundsColors.income,
-            icon: Icons.south_west_rounded,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: StatCard(
-            label: 'Keluar bln ini',
-            value: outflow,
-            valueColor: FlundsColors.expense,
-            icon: Icons.north_east_rounded,
-          ),
-        ),
-      ],
+    final cards = [
+      StatCard(label: 'Saldo kas', value: balance, icon: Icons.account_balance_wallet_outlined),
+      StatCard(label: 'Masuk bln ini', value: inflow, valueColor: FlundsColors.income, icon: Icons.south_west_rounded),
+      StatCard(label: 'Keluar bln ini', value: outflow, valueColor: FlundsColors.expense, icon: Icons.north_east_rounded),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              for (int i = 0; i < cards.length; i++) ...[
+                SizedBox(width: double.infinity, child: cards[i]),
+                if (i < cards.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            for (int i = 0; i < cards.length; i++) ...[
+              Expanded(child: cards[i]),
+              if (i < cards.length - 1) const SizedBox(width: 10),
+            ],
+          ],
+        );
+      },
     );
   }
 }

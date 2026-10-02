@@ -16,6 +16,7 @@ class TransactionsListScreen extends StatefulWidget {
 
 class _TransactionsListScreenState extends State<TransactionsListScreen> {
   String _categoryFilter = 'Semua';
+  String _scope = 'Semua';
   String _query = '';
   final _searchController = TextEditingController();
 
@@ -29,6 +30,11 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     var result = items;
     if (_categoryFilter != 'Semua') {
       result = result.where((t) => appData.categoryById(t.categoryId).name == _categoryFilter).toList();
+    }
+    if (_scope == 'Bisnis') {
+      result = result.where((t) => !t.isPersonal).toList();
+    } else if (_scope == 'Pribadi') {
+      result = result.where((t) => t.isPersonal).toList();
     }
     if (_query.trim().isNotEmpty) {
       final q = _query.trim().toLowerCase();
@@ -69,6 +75,24 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                 setState(() => _query = '');
                               },
                             ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: ContentBounds(
+                  maxWidth: 820,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'Semua', label: Text('Semua dana')),
+                        ButtonSegment(value: 'Bisnis', label: Text('Bisnis')),
+                        ButtonSegment(value: 'Pribadi', label: Text('Pribadi')),
+                      ],
+                      selected: {_scope},
+                      onSelectionChanged: (s) => setState(() => _scope = s.first),
                     ),
                   ),
                 ),

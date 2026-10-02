@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'info_sheet.dart';
 
 class RunwayCard extends StatelessWidget {
   final int runwayDays;
@@ -37,18 +38,34 @@ class RunwayCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'RUNWAY KAS SAAT INI',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.white70,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w600,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 340;
+              final title = GestureDetector(
+                onTap: () => showInfoSheet(
+                  context,
+                  icon: Icons.water_drop_outlined,
+                  title: 'Apa itu "kas bisa bertahan"?',
+                  body:
+                      'Ini perkiraan berapa hari lagi uang kas usahamu masih cukup untuk menutup pengeluaran sehari-hari, seandainya tidak ada pemasukan tambahan sama sekali. Semakin banyak harinya, semakin aman posisi usahamu.',
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'KAS BISA BERTAHAN',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.white70,
+                            letterSpacing: 0.6,
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
-              ),
-              Container(
+                    const SizedBox(width: 5),
+                    const Icon(Icons.help_outline, size: 14, color: Colors.white70),
+                  ],
+                ),
+              );
+              final status = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.16),
@@ -60,21 +77,35 @@ class RunwayCard extends StatelessWidget {
                     Container(
                       width: 7,
                       height: 7,
-                      decoration: BoxDecoration(color: _statusColor == FlundsColors.expense ? Colors.orangeAccent : Colors.lightGreenAccent, shape: BoxShape.circle),
+                      decoration: BoxDecoration(
+                        color: _statusColor == FlundsColors.expense ? Colors.orangeAccent : Colors.lightGreenAccent,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                     const SizedBox(width: 6),
                     Text(statusLabel, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
                   ],
                 ),
-              ),
-            ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [title, const SizedBox(height: 8), status],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [Expanded(child: title), const SizedBox(width: 8), status],
+              );
+            },
           ),
           const SizedBox(height: 10),
           Text.rich(
             TextSpan(
               children: [
                 TextSpan(text: '$runwayDays ', style: Theme.of(context).textTheme.displaySmall?.copyWith(color: Colors.white)),
-                const TextSpan(text: 'hari', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                const TextSpan(text: 'hari lagi', style: TextStyle(color: Colors.white70, fontSize: 16)),
               ],
             ),
           ),
@@ -90,7 +121,7 @@ class RunwayCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Ambang batas aman: $thresholdDays hari — bisa diubah di Profil',
+            'Batas aman: $thresholdDays hari — bisa diubah lewat tab Profil',
             style: const TextStyle(fontSize: 11.5, color: Colors.white70),
           ),
         ],
@@ -98,3 +129,4 @@ class RunwayCard extends StatelessWidget {
     );
   }
 }
+

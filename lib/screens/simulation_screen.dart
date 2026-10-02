@@ -6,11 +6,14 @@ import '../utils/responsive.dart';
 import '../widgets/scenario_card.dart';
 import '../widgets/empty_state.dart';
 
-class SimulationScreen extends StatefulWidget {
-  const SimulationScreen({super.key});
+/// The "what-if" simulation content, embedded as a tab inside
+/// [AnalysisScreen] (rather than its own screen) so it lives right next to
+/// the numbers it's meant to help reason about.
+class SimulationTabView extends StatefulWidget {
+  const SimulationTabView({super.key});
 
   @override
-  State<SimulationScreen> createState() => _SimulationScreenState();
+  State<SimulationTabView> createState() => _SimulationTabViewState();
 }
 
 class _ScenarioData {
@@ -20,19 +23,26 @@ class _ScenarioData {
   const _ScenarioData(this.label, this.runwayBefore, this.runwayAfter);
 }
 
-class _SimulationScreenState extends State<SimulationScreen> {
+class _SimulationTabViewState extends State<SimulationTabView> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _nominalController = TextEditingController();
   DateTime _tanggal = DateTime.now();
   final List<_ScenarioData> _skenario = [];
 
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _nominalController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pilihTanggal() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _tanggal,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      lastDate: DateTime(DateTime.now().year + 10),
     );
     if (picked != null) setState(() => _tanggal = picked);
   }
@@ -42,8 +52,10 @@ class _SimulationScreenState extends State<SimulationScreen> {
     final nominal = int.parse(_nominalController.text.replaceAll(RegExp(r'[^0-9]'), ''));
     final runwaySaatIni = appData.runwayDays;
     final estimasiSaldoBaru = appData.currentBalance - nominal;
-    final estimasiHariBerkurang = (nominal / 100000).round();
-    final runwaySesudah = (runwaySaatIni - estimasiHariBerkurang).clamp(0, 999);
+    final burn = appData.averageDailyBurn;
+    final runwaySesudah = burn <= 0
+        ? 0
+        : (estimasiSaldoBaru / burn).clamp(0, 999).round();
     final label = _titleController.text.trim().isEmpty
         ? 'Rencana ${formatRupiahCompact(nominal)} pada ${_tanggal.day}/${_tanggal.month}'
         : '${_titleController.text.trim()} (${formatRupiahCompact(nominal)})';
@@ -61,40 +73,40 @@ class _SimulationScreenState extends State<SimulationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Simulasi What-If')),
-      body: ListenableBuilder(
-        listenable: appData,
-        builder: (context, _) {
-          return Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-                child: context.isExpanded
-                    ? IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: _buildForm(context)),
-                            const SizedBox(width: 20),
-                            Expanded(child: _buildScenarioList(context)),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildForm(context),
-                          const SizedBox(height: 20),
-                          _buildScenarioList(context),
-                        ],
-                      ),
-              ),
-            ),
-          );
-        },
-      ),
+    return ListenableBuilder(
+      listenable: appData,
+      builder: (context, _) {
+        return SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            context.isExpanded ? 32 : 18,
+            16,
+            context.isExpanded ? 32 : 18,
+            90,
+          ),
+          child: ContentBounds(
+            maxWidth: context.isExpanded ? 980 : 720,
+            child: context.isExpanded
+                ? IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildForm(context)),
+                        const SizedBox(width: 20),
+                        Expanded(child: _buildScenarioList(context)),
+                      ],
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildForm(context),
+                      const SizedBox(height: 20),
+                      _buildScenarioList(context),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 
@@ -104,12 +116,17 @@ class _SimulationScreenState extends State<SimulationScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(
+            'Coba lihat dulu dampaknya sebelum benar-benar mengeluarkan uang untuk rencana besar — misalnya beli alat baru atau sewa tempat tambahan.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(color: FlundsColors.primarySoft, borderRadius: BorderRadius.circular(14)),
             child: Text(
-              'Runway saat ini: ${appData.runwayDays} hari · Saldo: ${formatRupiahCompact(appData.currentBalance)}',
+              'Kas bisa bertahan saat ini: ${appData.runwayDays} hari · Saldo: ${formatRupiahCompact(appData.currentBalance)}',
               style: const TextStyle(fontWeight: FontWeight.w600, color: FlundsColors.primaryDark),
             ),
           ),

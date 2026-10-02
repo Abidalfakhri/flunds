@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../data/app_data.dart';
 import '../models/category.dart';
 import '../theme/app_theme.dart';
-import '../utils/formatters.dart';
+import '../utils/responsive.dart';
 import '../widgets/confirm_dialog.dart';
 import 'category_form_screen.dart';
 
@@ -44,16 +44,6 @@ class CategoriesListScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                 children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: FlundsColors.primarySoft, borderRadius: BorderRadius.circular(14)),
-                    child: Text(
-                      'Tip: isi "Anggaran bulanan" pada kategori pengeluaran supaya Flunds bisa mengingatkanmu lewat menu Pemberitahuan kalau pengeluaran sudah mendekati batas.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: FlundsColors.primaryDark),
-                    ),
-                  ),
                   Text('Pemasukan', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   ...income.map((c) => _CategoryTile(category: c, onDelete: () => _confirmDelete(context, c))),
@@ -103,19 +93,7 @@ class _CategoryTile extends StatelessWidget {
             child: Icon(category.icon, color: category.color, size: 18),
           ),
           const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(category.name, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
-                if (category.hasBudget)
-                  Text(
-                    'Anggaran ${formatRupiahCompact(category.monthlyBudget!)}/bulan',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
+          Expanded(child: Text(category.name, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600))),
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 19),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CategoryFormScreen(existing: category))),

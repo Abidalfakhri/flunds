@@ -18,7 +18,7 @@ extension ResponsiveContext on BuildContext {
 
   int get gridColumns {
     if (isExpanded) return 4;
-    if (screenWidth >= 900) return 3;
+    if (isMedium) return 3;
     return 2;
   }
 }

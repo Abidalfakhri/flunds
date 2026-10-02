@@ -5,16 +5,12 @@ class GreetingHeader extends StatelessWidget {
   final String userName;
   final String businessName;
   final VoidCallback? onAvatarTap;
-  final VoidCallback? onNotificationTap;
-  final int notificationCount;
 
   const GreetingHeader({
     super.key,
     required this.userName,
     required this.businessName,
     this.onAvatarTap,
-    this.onNotificationTap,
-    this.notificationCount = 0,
   });
 
   String get _initial => userName.trim().isEmpty ? '?' : userName.trim()[0].toUpperCase();
@@ -34,9 +30,7 @@ class GreetingHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        _NotificationButton(count: notificationCount, onTap: onNotificationTap),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
         GestureDetector(
           onTap: onAvatarTap,
           child: Container(
@@ -58,44 +52,6 @@ class GreetingHeader extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _NotificationButton extends StatelessWidget {
-  final int count;
-  final VoidCallback? onTap;
-  const _NotificationButton({required this.count, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: FlundsColors.surfaceLine),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            const Icon(Icons.notifications_outlined, color: FlundsColors.textPrimary, size: 20),
-            if (count > 0)
-              Positioned(
-                top: 9,
-                right: 10,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: const BoxDecoration(color: FlundsColors.expense, shape: BoxShape.circle),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,46 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../data/app_data.dart';
 import '../models/category.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/responsive.dart';
-import '../utils/summary_builder.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
-import 'simulation_screen.dart';
 
-class AnalysisScreen extends StatefulWidget {
+class AnalysisScreen extends StatelessWidget {
   const AnalysisScreen({super.key});
-
-  @override
-  State<AnalysisScreen> createState() => _AnalysisScreenState();
-}
-
-class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _shareSummary(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: buildCashflowSummary(appData)));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ringkasan disalin — tinggal tempel ke WhatsApp atau catatanmu')),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,114 +19,53 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
           listenable: appData,
           builder: (context, _) {
             final hasTransactions = appData.transactions.isNotEmpty;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    context.isExpanded ? 32 : 18,
-                    14,
-                    context.isExpanded ? 32 : 18,
-                    0,
-                  ),
-                  child: ContentBounds(
-                    maxWidth: context.isExpanded ? 980 : 720,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Analisis Usaha', style: Theme.of(context).textTheme.headlineSmall),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Ringkasan performa kas ${appData.businessName} bulan ini',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton.filledTonal(
-                          onPressed: () => _shareSummary(context),
-                          tooltip: 'Bagikan ringkasan',
-                          icon: const Icon(Icons.ios_share_outlined, size: 19),
-                        ),
-                      ],
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                context.isExpanded ? 32 : 18,
+                14,
+                context.isExpanded ? 32 : 18,
+                90,
+              ),
+              child: ContentBounds(
+                maxWidth: context.isExpanded ? 980 : 720,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Analisis Usaha', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Ringkasan performa kas ${appData.businessName} bulan ini',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  labelColor: FlundsColors.primary,
-                  unselectedLabelColor: FlundsColors.textMuted,
-                  indicatorColor: FlundsColors.primary,
-                  tabs: const [
-                    Tab(text: 'Ringkasan'),
-                    Tab(text: 'Simulasi What-If'),
+                    const SizedBox(height: 20),
+                    if (!hasTransactions)
+                      const EmptyState(
+                        icon: Icons.bar_chart_outlined,
+                        title: 'Belum ada data',
+                        message: 'Catat transaksi dulu supaya analisis bisa muncul di sini.',
+                      )
+                    else ...[
+                      const _SummaryGrid(),
+                      const SizedBox(height: 22),
+                      const SectionHeader(title: 'Arus kas 14 hari terakhir'),
+                      const SizedBox(height: 10),
+                      const _CashflowTrendCard(),
+                      const SizedBox(height: 22),
+                      const SectionHeader(title: 'Pengeluaran per kategori (sepanjang waktu)'),
+                      const SizedBox(height: 10),
+                      const _CategoryBreakdownCard(type: CategoryType.expense),
+                      const SizedBox(height: 22),
+                      const SectionHeader(title: 'Pemasukan per kategori (sepanjang waktu)'),
+                      const SizedBox(height: 10),
+                      const _CategoryBreakdownCard(type: CategoryType.income),
+                      const SizedBox(height: 22),
+                      const SectionHeader(title: 'Bisnis vs. pribadi (sepanjang waktu)'),
+                      const SizedBox(height: 10),
+                      const _BusinessVsPersonalCard(),
+                    ],
                   ],
                 ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      SingleChildScrollView(
-                        padding: EdgeInsets.fromLTRB(
-                          context.isExpanded ? 32 : 18,
-                          14,
-                          context.isExpanded ? 32 : 18,
-                          90,
-                        ),
-                        child: ContentBounds(
-                          maxWidth: context.isExpanded ? 980 : 720,
-                          child: !hasTransactions
-                              ? const EmptyState(
-                                  icon: Icons.bar_chart_outlined,
-                                  title: 'Belum ada data',
-                                  message: 'Catat transaksi dulu supaya analisis bisa muncul di sini.',
-                                )
-                              : Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _SummaryGrid(),
-                                    if (appData.taxEstimateEnabled) ...[
-                                      const SizedBox(height: 22),
-                                      const SectionHeader(title: 'Estimasi Pajak UMKM'),
-                                      const SizedBox(height: 10),
-                                      _TaxEstimateCard(),
-                                    ],
-                                    const SizedBox(height: 22),
-                                    const SectionHeader(title: 'Anggaran kategori bulan ini'),
-                                    const SizedBox(height: 10),
-                                    _BudgetSection(),
-                                    const SizedBox(height: 22),
-                                    const SectionHeader(title: 'Arus kas 14 hari terakhir'),
-                                    const SizedBox(height: 10),
-                                    _CashflowTrendCard(),
-                                    const SizedBox(height: 22),
-                                    const SectionHeader(title: 'Pengeluaran per kategori (sepanjang waktu)'),
-                                    const SizedBox(height: 10),
-                                    _CategoryBreakdownCard(type: CategoryType.expense),
-                                    const SizedBox(height: 22),
-                                    const SectionHeader(title: 'Pemasukan per kategori (sepanjang waktu)'),
-                                    const SizedBox(height: 10),
-                                    _CategoryBreakdownCard(type: CategoryType.income),
-                                    const SizedBox(height: 22),
-                                    const SectionHeader(title: 'Bisnis vs. pribadi (sepanjang waktu)'),
-                                    const SizedBox(height: 10),
-                                    _BusinessVsPersonalCard(),
-                                  ],
-                                ),
-                        ),
-                      ),
-                      const SimulationTabView(),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             );
           },
         ),
@@ -216,173 +124,6 @@ class _SummaryGrid extends StatelessWidget {
   }
 }
 
-/// Rough PPh Final UMKM (0.5%) estimate — a differentiator most generic
-/// UMKM bookkeeping apps skip. Nothing here is filed automatically; it's
-/// just a heads-up so the owner can set the amount aside before it's spent,
-/// based on gross turnover recorded in Flunds.
-class _TaxEstimateCard extends StatelessWidget {
-  const _TaxEstimateCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final yearIncome = appData.yearIncome;
-    final exemptUsage = (yearIncome / AppData.pphFinalUmkmExemptThreshold).clamp(0.0, 1.0).toDouble();
-    final estimatedTax = appData.estimatedMonthlyTax;
-    final stillExempt = estimatedTax == 0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: FlundsColors.surfaceLine),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Perkiraan pajak bulan ini', style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: 4),
-                    Text(
-                      formatRupiahCompact(estimatedTax),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: stillExempt ? FlundsColors.income : FlundsColors.warning,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: FlundsColors.ownerCutBg, borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: const Icon(Icons.account_balance_outlined, color: FlundsColors.ownerCutText, size: 19),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: exemptUsage,
-              minHeight: 6,
-              backgroundColor: FlundsColors.surfaceLine,
-              valueColor: const AlwaysStoppedAnimation<Color>(FlundsColors.ownerCutText),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Omzet tahun ini: ${formatRupiahCompact(yearIncome)} dari batas bebas pajak '
-            '${formatRupiahCompact(AppData.pphFinalUmkmExemptThreshold)}/tahun',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            stillExempt
-                ? 'Omzet setahun masih di bawah Rp500 juta, jadi belum kena PPh Final UMKM.'
-                : 'Berdasarkan PPh Final UMKM 0,5% dari omzet di atas Rp500 juta/tahun (PP 55/2022). '
-                    'Perkiraan kasar, bukan pengganti perhitungan resmi atau konsultasi pajak.',
-            style: const TextStyle(fontSize: 11, color: FlundsColors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BudgetSection extends StatelessWidget {
-  const _BudgetSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final budgeted = appData.categoriesByType(CategoryType.expense).where((c) => c.hasBudget).toList();
-
-    if (budgeted.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: FlundsColors.surfaceLine)),
-        child: Text(
-          'Belum ada kategori dengan anggaran. Atur anggaran bulanan lewat menu Kelola Kategori supaya Flunds bisa mengingatkan kalau pengeluaran mendekati batas.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: FlundsColors.surfaceLine)),
-      child: Column(
-        children: [
-          for (int i = 0; i < budgeted.length; i++)
-            _BudgetRow(category: budgeted[i], showDivider: i < budgeted.length - 1),
-        ],
-      ),
-    );
-  }
-}
-
-class _BudgetRow extends StatelessWidget {
-  final Category category;
-  final bool showDivider;
-  const _BudgetRow({required this.category, required this.showDivider});
-
-  @override
-  Widget build(BuildContext context) {
-    final spent = appData.categorySpentThisMonth(category.id);
-    final budget = category.monthlyBudget!;
-    final usage = budget == 0 ? 0.0 : spent / budget;
-    final over = usage >= 1.0;
-    final barColor = over ? FlundsColors.expense : (usage >= 0.9 ? FlundsColors.warning : category.color);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: showDivider ? const Border(bottom: BorderSide(color: FlundsColors.surfaceLine)) : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(category.icon, size: 16, color: category.color),
-              const SizedBox(width: 8),
-              Expanded(child: Text(category.name, style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600))),
-              Text(
-                '${formatRupiahCompact(spent)} / ${formatRupiahCompact(budget)}',
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: over ? FlundsColors.expense : FlundsColors.textPrimary),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: usage.clamp(0.0, 1.0).toDouble(),
-              minHeight: 6,
-              backgroundColor: FlundsColors.surfaceLine,
-              valueColor: AlwaysStoppedAnimation<Color>(barColor),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            over ? 'Melebihi anggaran ${(usage * 100).round()}%' : '${(usage * 100).round()}% terpakai bulan ini',
-            style: TextStyle(fontSize: 11, color: over ? FlundsColors.expense : FlundsColors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _CashflowTrendCard extends StatelessWidget {
   const _CashflowTrendCard();
 
@@ -423,7 +164,7 @@ class _CashflowTrendCard extends StatelessWidget {
                             child: Align(
                               alignment: Alignment.bottomCenter,
                               child: FractionallySizedBox(
-                                heightFactor: (e.value.abs() / maxAbs).clamp(0.04, 1.0).toDouble(),
+                                heightFactor: (e.value.abs() / maxAbs).clamp(0.04, 1.0),
                                 widthFactor: 1,
                                 child: Container(
                                   decoration: BoxDecoration(
@@ -582,7 +323,7 @@ class _BreakdownRow extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: share.clamp(0.0, 1.0).toDouble(),
+                    value: share.clamp(0.0, 1.0),
                     minHeight: 6,
                     backgroundColor: FlundsColors.surfaceLine,
                     valueColor: AlwaysStoppedAnimation<Color>(category.color),
@@ -615,8 +356,8 @@ class _BusinessVsPersonalCard extends StatelessWidget {
     final personal = appData.personalOutflow;
     final total = business + personal;
     final businessShare = total == 0 ? 0.5 : business / total;
-    final businessFlex = (businessShare * 1000).round().clamp(1, 999).toInt();
-    final personalFlex = (1000 - businessFlex).clamp(1, 999).toInt();
+    final businessFlex = (businessShare * 1000).round().clamp(1, 999);
+    final personalFlex = (1000 - businessFlex).clamp(1, 999);
 
     return Container(
       width: double.infinity,

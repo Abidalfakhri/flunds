@@ -10,28 +10,25 @@ class FlundsBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: FlundsColors.surface,
-        border: Border(top: BorderSide(color: FlundsColors.surfaceLine)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 64,
-          child: Row(
-            children: [
-              for (int i = 0; i < flundsDestinations.length; i++)
-                Expanded(
-                  child: _NavIcon(
-                    destination: flundsDestinations[i],
-                    active: currentIndex == i,
-                    onTap: () => onTap(i),
-                  ),
-                ),
-            ],
-          ),
-        ),
+    // flundsDestinations has exactly 4 items, so this is always an even 2/2
+    // split around the FAB notch.
+    final leftCount = (flundsDestinations.length / 2).ceil();
+
+    return BottomAppBar(
+      color: FlundsColors.surface,
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8,
+      elevation: 0,
+      height: 72,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          for (int i = 0; i < leftCount; i++)
+            _NavIcon(destination: flundsDestinations[i], active: currentIndex == i, onTap: () => onTap(i)),
+          const SizedBox(width: 44),
+          for (int i = leftCount; i < flundsDestinations.length; i++)
+            _NavIcon(destination: flundsDestinations[i], active: currentIndex == i, onTap: () => onTap(i)),
+        ],
       ),
     );
   }
@@ -49,18 +46,27 @@ class _NavIcon extends StatelessWidget {
     final color = active ? FlundsColors.primary : FlundsColors.textMuted;
     return InkWell(
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(active ? destination.activeIcon : destination.icon, color: color, size: 22),
-          const SizedBox(height: 3),
-          Text(
-            destination.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600, height: 1.0),
+      customBorder: const CircleBorder(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(active ? destination.activeIcon : destination.icon, color: color, size: 21),
+              const SizedBox(height: 3),
+              Text(
+                destination.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600, height: 1.0),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

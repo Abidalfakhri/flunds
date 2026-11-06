@@ -21,7 +21,9 @@ String formatRupiahCompact(int amount) {
     result = 'Rp${_trimZero(millions)}jt';
   } else if (value >= 1000) {
     final thousands = value / 1000;
-    result = 'Rp${_trimZero(thousands)}rb';
+    final label = _trimZero(thousands);
+    // Nilai 999.950–999.999 dibulatkan jadi "1000rb"; lebih rapi ditulis "1jt".
+    result = label == '1000' ? 'Rp1jt' : 'Rp${label}rb';
   } else {
     result = 'Rp$value';
   }
@@ -72,11 +74,19 @@ String groupThousands(int value) {
 /// with the same `replaceAll(RegExp(r'[^0-9]'), '')` parsing already used
 /// across the app, so this is a drop-in visual layer with no parsing changes.
 class AmountInputFormatter extends TextInputFormatter {
+  /// Batas jumlah digit (maks. 999 miliar). Tanpa batas ini, mengetik/menempel
+  /// angka yang terlalu panjang membuat `int.parse` melempar FormatException
+  /// dan aplikasi error.
+  static const int maxDigits = 12;
+
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (digitsOnly.isEmpty) {
       return const TextEditingValue(text: '');
+    }
+    if (digitsOnly.length > maxDigits) {
+      return oldValue;
     }
     final formatted = groupThousands(int.parse(digitsOnly));
     return TextEditingValue(

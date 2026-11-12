@@ -30,9 +30,9 @@ const _colorChoices = [
 class CategoryFormScreen extends StatefulWidget {
   final Category? existing;
 
-  /// Preselects income/expense when creating a brand-new category (e.g.
-  /// from inside the transaction form) so the owner doesn't have to
-  /// re-select something they already told the app.
+                                                                        
+                                                                    
+                                                    
   final CategoryType? initialType;
 
   const CategoryFormScreen({super.key, this.existing, this.initialType});

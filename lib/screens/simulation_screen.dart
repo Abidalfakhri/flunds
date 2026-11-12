@@ -6,9 +6,9 @@ import '../utils/responsive.dart';
 import '../widgets/scenario_card.dart';
 import '../widgets/empty_state.dart';
 
-/// The "what-if" simulation content, embedded as a tab inside
-/// [AnalysisScreen] (rather than its own screen) so it lives right next to
-/// the numbers it's meant to help reason about.
+                                                              
+                                                                           
+                                                
 class SimulationTabView extends StatefulWidget {
   const SimulationTabView({super.key});
 

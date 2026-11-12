@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../data/app_data.dart';
+import '../data/auth_service.dart';
 import '../models/insight.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/summary_builder.dart';
 import '../widgets/confirm_dialog.dart';
+import 'auth/register_screen.dart';
 import 'categories_list_screen.dart';
 import 'debts_screen.dart';
 import 'notifications_screen.dart';
@@ -19,7 +21,7 @@ class ProfileSettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Profil & Pengaturan')),
       body: ListenableBuilder(
-        listenable: appData,
+        listenable: Listenable.merge([appData, auth]),
         builder: (context, _) {
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 90),
@@ -30,6 +32,10 @@ class ProfileSettingsScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _ProfileCard(),
+                    if (auth.isGuest) ...[
+                      const SizedBox(height: 12),
+                      const _GuestBanner(),
+                    ],
                     const SizedBox(height: 20),
                     Text('Pengaturan kas & gaji pemilik', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 10),
@@ -77,9 +83,23 @@ class ProfileSettingsScreen extends StatelessWidget {
                     _MenuTile(
                       icon: Icons.restart_alt_outlined,
                       title: 'Reset Semua Data',
-                      subtitle: 'Kembalikan aplikasi ke data contoh awal',
+                      subtitle: (auth.currentUser?.isDemo ?? false)
+                          ? 'Kembalikan aplikasi ke data contoh awal'
+                          : 'Hapus semua catatan dan mulai dari kosong',
                       iconColor: FlundsColors.expense,
                       onTap: () => _confirmReset(context),
+                    ),
+                    const SizedBox(height: 24),
+                    Text('Akun', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 10),
+                    _MenuTile(
+                      icon: Icons.logout,
+                      title: 'Keluar',
+                      subtitle: auth.isGuest
+                          ? 'Data mode tamu akan dihapus'
+                          : (auth.currentUser?.email ?? ''),
+                      iconColor: FlundsColors.expense,
+                      onTap: () => _confirmSignOut(context),
                     ),
                     const SizedBox(height: 24),
                     _AboutPersonaCard(),
@@ -114,18 +134,71 @@ class ProfileSettingsScreen extends StatelessWidget {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Reset semua data?',
-      message:
-          'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus dan '
-          'dikembalikan ke data contoh awal. Tindakan ini tidak bisa dibatalkan.',
+      message: (auth.currentUser?.isDemo ?? false)
+          ? 'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus dan '
+              'dikembalikan ke data contoh awal. Tindakan ini tidak bisa dibatalkan.'
+          : 'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus. '
+              'Tindakan ini tidak bisa dibatalkan.',
       confirmLabel: 'Reset',
     );
     if (!confirmed) return;
-    appData.resetAllData();
+    auth.resetCurrentWorkspace();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Data berhasil direset ke kondisi awal')),
       );
     }
+  }
+
+  Future<void> _confirmSignOut(BuildContext context) async {
+    final isGuest = auth.isGuest;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Keluar dari akun?',
+      message: isGuest
+          ? 'Kamu sedang memakai mode tamu. Semua catatan akan hilang setelah keluar. '
+              'Daftar dulu kalau ingin menyimpannya.'
+          : 'Kamu bisa masuk lagi kapan saja dengan email dan kata sandi.',
+      confirmLabel: 'Keluar',
+      isDestructive: isGuest,
+    );
+    if (!confirmed) return;
+    auth.signOut();
+  }
+}
+
+class _GuestBanner extends StatelessWidget {
+  const _GuestBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: FlundsColors.warningSoft,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: FlundsColors.warning, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Kamu masuk sebagai tamu. Daftar agar catatanmu tidak hilang.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RegisterScreen()),
+            ),
+            child: const Text('Daftar'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -160,11 +233,31 @@ class _ProfileCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(appData.businessName, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                 Text(appData.businessType, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 8),
+                _AccountChip(),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AccountChip extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final user = auth.currentUser;
+    final label = switch (user?.kind) {
+      AccountKind.guest => 'Mode tamu',
+      AccountKind.demo => 'Akun demo',
+      _ => user?.email ?? '',
+    };
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w600)),
     );
   }
 }

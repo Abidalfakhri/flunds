@@ -1,10 +1,10 @@
 import '../data/app_data.dart';
 import 'formatters.dart';
 
-/// Builds a short plain-text business summary the owner can paste into
-/// WhatsApp, notes, or send to an accountant — since this app doesn't have a
-/// backend yet to export a real file, copying formatted text is the
-/// simplest way to actually get the numbers out of the app.
+                                                                       
+                                                                             
+                                                                    
+                                                            
 String buildCashflowSummary(AppData data) {
   final buffer = StringBuffer();
   buffer.writeln('Ringkasan Kas — ${data.businessName}');

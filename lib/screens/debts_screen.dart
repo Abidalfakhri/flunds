@@ -124,10 +124,10 @@ class _DebtsScreenState extends State<DebtsScreen> with SingleTickerProviderStat
           );
         },
       ),
-      // No floatingActionButton here: this screen is one of AppShell's bottom
-      // tabs, and AppShell already renders its own global "+" FAB (quick-add
-      // sheet, which includes "Piutang Baru" / "Utang Baru"). Adding a second
-      // FAB here used to stack directly on top of it in the same corner.
+                                                                              
+                                                                             
+                                                                              
+                                                                         
     );
   }
 }

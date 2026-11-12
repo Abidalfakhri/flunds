@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "998719177711",
+    "project_id": "flunds",
+    "storage_bucket": "flunds.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:998719177711:android:4736419cc3e4667efe6c1a",
+        "android_client_info": {
+          "package_name": "com.example.flunds"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPV5iP4zAMoVrtWA7VmSQr9IwDLGsYw8w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

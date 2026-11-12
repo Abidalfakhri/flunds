@@ -9,10 +9,10 @@ class Category {
   final IconData icon;
   final Color color;
 
-  /// Optional monthly spending limit for expense categories. Null means no
-  /// budget has been set yet — used to power the budget-tracking & alert
-  /// features so an owner can see when a category is about to blow past
-  /// what they normally spend on it.
+                                                                           
+                                                                         
+                                                                        
+                                     
   final int? monthlyBudget;
 
   const Category({

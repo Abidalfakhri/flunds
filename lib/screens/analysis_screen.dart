@@ -216,10 +216,10 @@ class _SummaryGrid extends StatelessWidget {
   }
 }
 
-/// Rough PPh Final UMKM (0.5%) estimate — a differentiator most generic
-/// UMKM bookkeeping apps skip. Nothing here is filed automatically; it's
-/// just a heads-up so the owner can set the amount aside before it's spent,
-/// based on gross turnover recorded in Flunds.
+                                                                        
+                                                                         
+                                                                            
+                                               
 class _TaxEstimateCard extends StatelessWidget {
   const _TaxEstimateCard();
 

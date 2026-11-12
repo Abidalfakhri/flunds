@@ -38,6 +38,7 @@ class _AppShellState extends State<AppShell> {
           children: [
             NavigationRail(
               selectedIndex: _index,
+              scrollable: true,
               onDestinationSelected: (i) => setState(() => _index = i),
               backgroundColor: FlundsColors.surface,
               labelType: NavigationRailLabelType.all,

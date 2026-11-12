@@ -8,7 +8,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/transaction_tile.dart';
 import 'transaction_detail_screen.dart';
 
-/// Rentang waktu yang bisa dipilih untuk menyaring daftar transaksi.
+                                                                     
 enum _Period { all, last7, thisMonth, last30 }
 
 const _periodLabels = {
@@ -38,9 +38,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     super.dispose();
   }
 
-  /// True jika [date] masuk ke rentang waktu yang sedang dipilih.
-  /// Rentang bergulir (7/30 hari) dibatasi sampai hari ini, jadi transaksi
-  /// yang tanggalnya di masa depan tidak ikut terhitung.
+                                                                  
+                                                                           
+                                                         
   bool _inPeriod(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -145,17 +145,19 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
         listenable: appData,
         builder: (context, _) {
           final categories = ['Semua', ...appData.categories.map((c) => c.name)];
-          // Jika kategori yang dipilih sudah dihapus/diganti namanya, anggap
-          // filter "Semua" supaya daftar tidak kosong tanpa alasan.
+                                                                             
+                                                                    
           final activeCategory = categories.contains(_categoryFilter) ? _categoryFilter : 'Semua';
           final filtered = _apply(appData.transactions, activeCategory);
           final hasActiveFilter =
               activeCategory != 'Semua' || _scope != 'Semua' || _period != _Period.all || _query.trim().isNotEmpty;
 
+          final compactHeight = context.screenHeight < 650;
+
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: EdgeInsets.fromLTRB(16, compactHeight ? 2 : 8, 16, 2),
                 child: ContentBounds(
                   maxWidth: 820,
                   child: Row(
@@ -199,7 +201,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: EdgeInsets.fromLTRB(16, compactHeight ? 2 : 8, 16, 2),
                 child: ContentBounds(
                   maxWidth: 820,
                   child: Align(
@@ -217,7 +219,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 ),
               ),
               SizedBox(
-                height: 48,
+                height: compactHeight ? 40 : 48,
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 820),
@@ -241,7 +243,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 ),
               ),
               _buildSummary(context, filtered, hasActiveFilter),
-              const SizedBox(height: 4),
+              SizedBox(height: compactHeight ? 0 : 4),
               Expanded(
                 child: filtered.isEmpty
                     ? const EmptyState(

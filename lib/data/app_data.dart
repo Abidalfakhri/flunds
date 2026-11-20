@@ -5,10 +5,40 @@ import '../models/insight.dart';
 import '../models/savings_goal.dart';
 import '../models/transaction_item.dart';
 import '../utils/formatters.dart';
+import 'firestore_repository.dart';
 
 enum DeleteCategoryResult { success, inUse, isLastOfType }
 
 enum UpdateCategoryResult { success, notFound, typeInUse }
+
+                                                                       
+class AppSnapshot {
+  final String ownerName;
+  final String businessName;
+  final String businessType;
+  final int runwayThresholdDays;
+  final double ownerCutPercentage;
+  final int startingBalance;
+  final bool taxEstimateEnabled;
+  final List<Category> categories;
+  final List<TransactionItem> transactions;
+  final List<DebtItem> debts;
+  final List<SavingsGoal> goals;
+
+  const AppSnapshot({
+    required this.ownerName,
+    required this.businessName,
+    required this.businessType,
+    required this.runwayThresholdDays,
+    required this.ownerCutPercentage,
+    required this.startingBalance,
+    required this.taxEstimateEnabled,
+    required this.categories,
+    required this.transactions,
+    required this.debts,
+    required this.goals,
+  });
+}
 
 class AppData extends ChangeNotifier {
   AppData() {
@@ -20,9 +50,76 @@ class AppData extends ChangeNotifier {
 
   int _idCounter = 0;
 
-  /// ID unik: waktu + penghitung, mencegah ID ganda saat data ditambah cepat.
+                                                                              
   String _newId(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_idCounter++}';
+
+  // ---------- Sinkronisasi Firestore (hanya akun member) ----------
+
+  FirestoreRepository? _repo;
+
+  void attachRepository(String uid) => _repo = FirestoreRepository(uid);
+
+  void detachRepository() => _repo = null;
+
+  /// Jalankan operasi Firestore tanpa menunggu hasilnya.
+  /// UI tetap cepat; kalau offline, SDK Firestore mengantrekan tulisannya.
+  void _sync(Future<void> Function(FirestoreRepository repo) op) {
+    final repo = _repo;
+    if (repo == null) return;
+    op(repo).catchError((Object e) {
+      debugPrint('Sinkronisasi Firestore gagal: $e');
+    });
+  }
+
+  /// Muat kategori & transaksi dari Firestore. Return false kalau gagal.
+  Future<bool> loadFromRepository() async {
+    final repo = _repo;
+    if (repo == null) return false;
+
+    try {
+      final cats = await repo.loadCategories();
+      final txs = await repo.loadTransactions();
+
+      if (cats.isEmpty) {
+        // Akun baru / belum pernah tersimpan: pakai kategori default
+        // yang sudah ada di memori, lalu simpan ke Firestore.
+        _sync((r) => r.saveCategories(_categories));
+      } else {
+        _categories
+          ..clear()
+          ..addAll(cats);
+      }
+
+      _transactions
+        ..clear()
+        ..addAll(txs);
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Gagal memuat data dari Firestore: $e');
+      return false;
+    }
+  }
+
+  /// Kirim semua kategori & transaksi lokal ke Firestore
+  /// (dipakai saat register, termasuk data milik tamu).
+  void pushAllToRepository() {
+    _sync((r) async {
+      await r.saveCategories(_categories);
+      await r.saveTransactions(_transactions);
+    });
+  }
+
+  /// Ganti isi Firestore dengan data lokal saat ini (dipakai saat reset).
+  void replaceRemoteWithLocal() {
+    _sync((r) async {
+      await r.clearAll();
+      await r.saveCategories(_categories);
+      await r.saveTransactions(_transactions);
+    });
+  }
 
   String ownerName = 'Budi';
   String businessName = 'Warung Berkah';
@@ -55,7 +152,7 @@ class AppData extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Mengembalikan seluruh data ke data demo toko kelontong.
+                                                             
   void resetAllData() {
     ownerName = 'Budi';
     businessName = 'Warung Berkah';
@@ -78,9 +175,79 @@ class AppData extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------------
-  // Categories
-  // ---------------------------------------------------------------------
+                                                                      
+                                                      
+  void startFreshWorkspace({
+    required String ownerName,
+    required String businessName,
+    String businessType = 'UMKM',
+    int startingBalance = 0,
+  }) {
+    this.ownerName = ownerName;
+    this.businessName = businessName;
+    this.businessType = businessType;
+    this.startingBalance = startingBalance;
+    runwayThresholdDays = 14;
+    ownerCutPercentage = 0.10;
+    taxEstimateEnabled = true;
+
+    _categories.clear();
+    _transactions.clear();
+    _debts.clear();
+    _goals.clear();
+
+    _seedCategories();
+    for (var i = 0; i < _categories.length; i++) {
+      _categories[i] = _categories[i].copyWith(clearBudget: true);
+    }
+
+    notifyListeners();
+  }
+
+                                                                      
+                                                                        
+  AppSnapshot takeSnapshot() => AppSnapshot(
+        ownerName: ownerName,
+        businessName: businessName,
+        businessType: businessType,
+        runwayThresholdDays: runwayThresholdDays,
+        ownerCutPercentage: ownerCutPercentage,
+        startingBalance: startingBalance,
+        taxEstimateEnabled: taxEstimateEnabled,
+        categories: List.of(_categories),
+        transactions: List.of(_transactions),
+        debts: List.of(_debts),
+        goals: List.of(_goals),
+      );
+
+  void restoreSnapshot(AppSnapshot s) {
+    ownerName = s.ownerName;
+    businessName = s.businessName;
+    businessType = s.businessType;
+    runwayThresholdDays = s.runwayThresholdDays;
+    ownerCutPercentage = s.ownerCutPercentage;
+    startingBalance = s.startingBalance;
+    taxEstimateEnabled = s.taxEstimateEnabled;
+
+    _categories
+      ..clear()
+      ..addAll(s.categories);
+    _transactions
+      ..clear()
+      ..addAll(s.transactions);
+    _debts
+      ..clear()
+      ..addAll(s.debts);
+    _goals
+      ..clear()
+      ..addAll(s.goals);
+
+    notifyListeners();
+  }
+
+                                                                          
+               
+                                                                          
 
   final List<Category> _categories = [];
 
@@ -130,6 +297,7 @@ class AppData extends ChangeNotifier {
     );
 
     _categories.add(category);
+    _sync((r) => r.saveCategory(category));
     notifyListeners();
 
     return category;
@@ -153,6 +321,7 @@ class AppData extends ChangeNotifier {
     }
 
     _categories[index] = updated;
+    _sync((r) => r.saveCategory(updated));
     notifyListeners();
 
     return UpdateCategoryResult.success;
@@ -169,6 +338,8 @@ class AppData extends ChangeNotifier {
       clearBudget: amount == null,
     );
 
+    final saved = _categories[index];
+    _sync((r) => r.saveCategory(saved));
     notifyListeners();
   }
 
@@ -190,13 +361,14 @@ class AppData extends ChangeNotifier {
     }
 
     _categories.removeWhere((c) => c.id == id);
+    _sync((r) => r.deleteCategory(id));
 
     notifyListeners();
 
     return DeleteCategoryResult.success;
   }
 
-  /// Mengecek apakah ada data yang memiliki referensi tidak valid.
+                                                                   
   List<String> get dataIntegrityIssues {
     final issues = <String>[];
 
@@ -237,9 +409,9 @@ class AppData extends ChangeNotifier {
     return List.unmodifiable(issues);
   }
 
-  // ---------------------------------------------------------------------
-  // Transactions
-  // ---------------------------------------------------------------------
+                                                                          
+                 
+                                                                          
 
   final List<TransactionItem> _transactions = [];
 
@@ -303,6 +475,7 @@ class AppData extends ChangeNotifier {
     );
 
     _transactions.add(item);
+    _sync((r) => r.saveTransaction(item));
     notifyListeners();
 
     return item;
@@ -318,6 +491,8 @@ class AppData extends ChangeNotifier {
       title: updated.title.trim(),
       note: updated.note.trim(),
     );
+    final saved = _transactions[index];
+    _sync((r) => r.saveTransaction(saved));
     notifyListeners();
     return true;
   }
@@ -326,7 +501,10 @@ class AppData extends ChangeNotifier {
     final before = _transactions.length;
     _transactions.removeWhere((t) => t.id == id);
     final removed = _transactions.length != before;
-    if (removed) notifyListeners();
+    if (removed) {
+      _sync((r) => r.deleteTransaction(id));
+      notifyListeners();
+    }
     return removed;
   }
 
@@ -599,9 +777,9 @@ class AppData extends ChangeNotifier {
         (sum, t) => sum + t.amount,
       );
 
-  // ---------------------------------------------------------------------
-  // Utang & Piutang
-  // ---------------------------------------------------------------------
+                                                                          
+                    
+                                                                          
 
   final List<DebtItem> _debts = [];
 
@@ -723,9 +901,9 @@ class AppData extends ChangeNotifier {
     return removed;
   }
 
-  // ---------------------------------------------------------------------
-  // Target Menabung
-  // ---------------------------------------------------------------------
+                                                                          
+                    
+                                                                          
 
   final List<SavingsGoal> _goals = [];
 
@@ -837,9 +1015,9 @@ class AppData extends ChangeNotifier {
     return removed;
   }
 
-  // ---------------------------------------------------------------------
-  // Insights
-  // ---------------------------------------------------------------------
+                                                                          
+             
+                                                                          
 
   List<Insight> get insights {
     final list = <Insight>[];
@@ -968,9 +1146,9 @@ class AppData extends ChangeNotifier {
     return list;
   }
 
-  // ---------------------------------------------------------------------
-  // Seed / dummy data
-  // ---------------------------------------------------------------------
+                                                                          
+                      
+                                                                          
 
   void _seedCategories() {
     _categories.addAll(
@@ -1031,15 +1209,15 @@ class AppData extends ChangeNotifier {
     );
   }
 
-  /// Tanggal hari ini (tanpa jam) sebagai acuan data demo, agar data contoh
-  /// selalu terlihat "baru" kapan pun aplikasi dibuka.
+                                                                            
+                                                       
   DateTime get _today {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
   }
 
   void _seedTransactions() {
-    // Hari ke-30 = hari ini, hari ke-1 = 29 hari lalu.
+                                                       
     DateTime d(int day) => _today.subtract(Duration(days: 30 - day));
 
     _transactions.addAll(
@@ -1458,7 +1636,7 @@ class AppData extends ChangeNotifier {
   }
 
   void _seedDebts() {
-    // Hari ke-26 = hari ini; jatuh tempo sebagian besar di depan.
+                                                                  
     DateTime d(int day) => _today.add(Duration(days: day - 26));
 
     _debts.addAll(

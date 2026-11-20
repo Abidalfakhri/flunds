@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/icon_registry.dart';
+
 enum CategoryType { income, expense }
 
 class Category {
@@ -9,10 +11,10 @@ class Category {
   final IconData icon;
   final Color color;
 
-  /// Optional monthly spending limit for expense categories. Null means no
-  /// budget has been set yet — used to power the budget-tracking & alert
-  /// features so an owner can see when a category is about to blow past
-  /// what they normally spend on it.
+                                                                           
+                                                                         
+                                                                        
+                                     
   final int? monthlyBudget;
 
   const Category({
@@ -39,6 +41,27 @@ class Category {
       icon: icon ?? this.icon,
       color: color ?? this.color,
       monthlyBudget: clearBudget ? null : (monthlyBudget ?? this.monthlyBudget),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'type': type.name,
+        'icon': iconToKey(icon),
+        'color': color.toARGB32(),
+        'monthlyBudget': monthlyBudget,
+      };
+
+  factory Category.fromMap(String id, Map<String, dynamic> m) {
+    return Category(
+      id: id,
+      name: (m['name'] as String?) ?? '',
+      type: (m['type'] as String?) == 'income'
+          ? CategoryType.income
+          : CategoryType.expense,
+      icon: iconFromKey(m['icon'] as String?),
+      color: Color((m['color'] as num?)?.toInt() ?? 0xFF6B6558),
+      monthlyBudget: (m['monthlyBudget'] as num?)?.toInt(),
     );
   }
 

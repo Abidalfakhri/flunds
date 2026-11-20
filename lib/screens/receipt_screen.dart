@@ -5,9 +5,9 @@ import '../models/transaction_item.dart';
 import '../theme/app_theme.dart';
 import '../utils/formatters.dart';
 
-/// A simple, shareable receipt/"nota" built from an income transaction —
-/// useful for a UMKM owner who wants to send proof of payment to a customer
-/// without needing a real invoicing system.
+                                                                         
+                                                                            
+                                            
 class ReceiptScreen extends StatelessWidget {
   final TransactionItem transaction;
   const ReceiptScreen({super.key, required this.transaction});

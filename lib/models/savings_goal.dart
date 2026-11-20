@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// A savings target the owner is working toward (e.g. new equipment, an
-/// emergency fund), tracked separately from the main cash balance so saving
-/// up for something doesn't get mixed up with the day-to-day cashflow.
+                                                                        
+                                                                            
+                                                                       
 class SavingsGoal {
   final String id;
   final String name;

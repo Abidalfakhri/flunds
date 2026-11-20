@@ -1,8 +1,8 @@
 enum DebtType { payable, receivable }
 
-/// A simple utang/piutang (debt/receivable) record so a UMKM owner can track
-/// money they owe suppliers (payable) or money customers owe them
-/// (receivable), separate from the day-to-day cash transactions.
+                                                                             
+                                                                  
+                                                                 
 class DebtItem {
   final String id;
   final DebtType type;

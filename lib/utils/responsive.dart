@@ -7,11 +7,21 @@ class Breakpoints {
 }
 
 extension ResponsiveContext on BuildContext {
-  double get screenWidth => MediaQuery.sizeOf(this).width;
+  Size get screenSize => MediaQuery.sizeOf(this);
+
+  double get screenWidth => screenSize.width;
+  double get screenHeight => screenSize.height;
+
+  bool get isLandscape => screenWidth > screenHeight;
+  bool get isShortScreen => screenHeight < 650;
+  bool get isCompactLayout => isLandscape || isShortScreen;
 
   bool get isCompact => screenWidth < Breakpoints.compact;
+
   bool get isMedium =>
-      screenWidth >= Breakpoints.compact && screenWidth < Breakpoints.expanded;
+      screenWidth >= Breakpoints.compact &&
+      screenWidth < Breakpoints.expanded;
+
   bool get isExpanded => screenWidth >= Breakpoints.expanded;
 
   bool get useRailNavigation => screenWidth >= Breakpoints.compact;
@@ -21,13 +31,29 @@ extension ResponsiveContext on BuildContext {
     if (screenWidth >= 900) return 3;
     return 2;
   }
+
+  double get horizontalPadding {
+    if (isExpanded) return 32;
+    if (isMedium) return 24;
+    return 16;
+  }
+
+  double get verticalPadding => isCompactLayout ? 12 : 24;
+
+  double get contentSpacing => isCompactLayout ? 12 : 20;
+
+  double get responsiveHeightFactor => isCompactLayout ? 0.85 : 1.0;
 }
 
 class ContentBounds extends StatelessWidget {
   final Widget child;
   final double maxWidth;
 
-  const ContentBounds({super.key, required this.child, this.maxWidth = 720});
+  const ContentBounds({
+    super.key,
+    required this.child,
+    this.maxWidth = 720,
+  });
 
   @override
   Widget build(BuildContext context) {

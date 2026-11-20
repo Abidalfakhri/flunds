@@ -53,10 +53,25 @@ class AuthService extends ChangeNotifier {
         kind: AccountKind.member,
       );
 
-      await _loadProfile(user.uid);
+      await _startMemberSession(user.uid);
     }
 
     notifyListeners();
+  }
+
+  /// Siapkan workspace kosong, muat profil, lalu hubungkan & muat data
+  /// (kategori + transaksi) dari Firestore.
+  Future<void> _startMemberSession(String uid) async {
+    appData.detachRepository();
+    appData.startFreshWorkspace(
+      ownerName: 'Pengguna',
+      businessName: 'Usaha Saya',
+    );
+
+    await _loadProfile(uid);
+
+    appData.attachRepository(uid);
+    await appData.loadFromRepository();
   }
 
   Future<void> _loadProfile(String uid) async {
@@ -150,7 +165,7 @@ class AuthService extends ChangeNotifier {
         kind: AccountKind.member,
       );
 
-      await _loadProfile(user.uid);
+      await _startMemberSession(user.uid);
       notifyListeners();
 
       return null;
@@ -182,11 +197,13 @@ class AuthService extends ChangeNotifier {
       kind: AccountKind.demo,
     );
 
+    appData.detachRepository();
     appData.resetAllData();
     notifyListeners();
   }
 
   Future<void> continueAsGuest() async {
+    appData.detachRepository();
     appData.startFreshWorkspace(
       ownerName: 'Tamu',
       businessName: 'Usaha Saya',
@@ -241,6 +258,10 @@ class AuthService extends ChangeNotifier {
         startingBalance: appData.startingBalance,
       );
 
+      // Hubungkan ke Firestore dan simpan kategori (+ transaksi tamu, jika ada).
+      appData.attachRepository(user.uid);
+      appData.pushAllToRepository();
+
       _current = AuthUser(
         id: user.uid,
         email: user.email ?? email.trim(),
@@ -269,6 +290,8 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    appData.detachRepository();
+
     if (_current?.kind == AccountKind.member) {
       await _firebaseAuth.signOut();
     }
@@ -289,6 +312,10 @@ class AuthService extends ChangeNotifier {
         businessName: appData.businessName,
         businessType: appData.businessType,
       );
+
+      if (user.kind == AccountKind.member) {
+        appData.replaceRemoteWithLocal();
+      }
     }
   }
 }

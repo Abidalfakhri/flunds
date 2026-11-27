@@ -6,9 +6,9 @@ import '../screens/debt_form_screen.dart';
 import '../screens/goal_form_screen.dart';
 import '../screens/owner_withdraw_screen.dart';
 
-/// Bottom sheet of one-tap shortcuts to the most common things a UMKM
-/// owner records day to day — replacing a single generic "add transaction"
-/// button with clearer, purpose-built entry points.
+                                                                      
+                                                                           
+                                                    
 Future<void> showQuickAddSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,

@@ -21,7 +21,9 @@ String formatRupiahCompact(int amount) {
     result = 'Rp${_trimZero(millions)}jt';
   } else if (value >= 1000) {
     final thousands = value / 1000;
-    result = 'Rp${_trimZero(thousands)}rb';
+    final label = _trimZero(thousands);
+                                                                                
+    result = label == '1000' ? 'Rp1jt' : 'Rp${label}rb';
   } else {
     result = 'Rp$value';
   }
@@ -40,9 +42,9 @@ String formatDateFull(DateTime date) => _dateFull.format(date);
 
 String formatDateShort(DateTime date) => _dateShort.format(date);
 
-/// Friendly relative label for a due date, e.g. "3 hari lagi", "Besok", or
-/// "Terlambat 2 hari" once it has passed — easier for a non-technical owner
-/// to scan at a glance than a raw date.
+                                                                           
+                                                                            
+                                        
 String formatDateRelative(DateTime date) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -54,9 +56,9 @@ String formatDateRelative(DateTime date) {
   return 'Terlambat ${-diff} hari';
 }
 
-/// Groups an integer's digits with '.' every 3 digits (id_ID style),
-/// e.g. 1250000 -> "1.250.000". Used both by [AmountInputFormatter] and to
-/// seed a controller's initial text so typed and pre-filled values match.
+                                                                     
+                                                                           
+                                                                          
 String groupThousands(int value) {
   final digits = value.abs().toString();
   final buffer = StringBuffer();
@@ -67,16 +69,24 @@ String groupThousands(int value) {
   return value < 0 ? '-${buffer.toString()}' : buffer.toString();
 }
 
-/// Live thousand-separator formatting for nominal/amount fields, so typing
-/// "150000" renders as "150.000" as the user types. Digits are recovered
-/// with the same `replaceAll(RegExp(r'[^0-9]'), '')` parsing already used
-/// across the app, so this is a drop-in visual layer with no parsing changes.
+                                                                           
+                                                                         
+                                                                          
+                                                                              
 class AmountInputFormatter extends TextInputFormatter {
+                                                                               
+                                                                             
+                         
+  static const int maxDigits = 12;
+
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     final digitsOnly = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (digitsOnly.isEmpty) {
       return const TextEditingValue(text: '');
+    }
+    if (digitsOnly.length > maxDigits) {
+      return oldValue;
     }
     final formatted = groupThousands(int.parse(digitsOnly));
     return TextEditingValue(

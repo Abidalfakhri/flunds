@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Shows a short bottom sheet explaining a term in plain language, so
-/// first-time or non-technical owners aren't left guessing what a label
-/// like "Kas Bisa Bertahan" or "Owner's Cut" actually means.
+                                                                      
+                                                                        
+                                                             
 Future<void> showInfoSheet(
   BuildContext context, {
   required String title,

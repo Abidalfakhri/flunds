@@ -9,10 +9,10 @@ import 'category_form_screen.dart';
 class TransactionFormScreen extends StatefulWidget {
   final TransactionItem? existing;
 
-  /// When set (and only used for a brand-new transaction), preselects the
-  /// income/expense type and filters the category picker to match — used by
-  /// the quick-add sheet so "Pemasukan" and "Pengeluaran" actually open a
-  /// form that's already pointed the right way.
+                                                                          
+                                                                            
+                                                                          
+                                                
   final CategoryType? initialType;
 
   const TransactionFormScreen({super.key, this.existing, this.initialType});

@@ -38,6 +38,7 @@ class _AppShellState extends State<AppShell> {
           children: [
             NavigationRail(
               selectedIndex: _index,
+              scrollable: true,
               onDestinationSelected: (i) => setState(() => _index = i),
               backgroundColor: FlundsColors.surface,
               labelType: NavigationRailLabelType.all,
@@ -70,20 +71,6 @@ class _AppShellState extends State<AppShell> {
                         label: Text(d.label),
                       ))
                   .toList(),
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: IconButton(
-                      onPressed: _openProfile,
-                      tooltip: 'Profil',
-                      icon: const Icon(Icons.person_outline),
-                      color: FlundsColors.textMuted,
-                    ),
-                  ),
-                ),
-              ),
             ),
             const VerticalDivider(width: 1, color: FlundsColors.surfaceLine),
             Expanded(child: IndexedStack(index: _index, children: _screens)),

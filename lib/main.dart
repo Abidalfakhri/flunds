@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 
+import 'ai/app_check_setup.dart';
 import 'data/auth_service.dart';
 import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
@@ -18,6 +19,9 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // App Check diaktifkan sekali di awal, bukan saat permintaan AI pertama.
+  await initAppCheck();
+
   await auth.initialize();
   runApp(const FlundsApp());
 }

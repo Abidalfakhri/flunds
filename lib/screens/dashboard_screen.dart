@@ -12,6 +12,7 @@ import '../widgets/section_header.dart';
 import '../widgets/transaction_tile.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/goal_card.dart';
+import '../widgets/ai_insight_card.dart';
 import 'owner_withdraw_screen.dart';
 import 'transactions_list_screen.dart';
 import 'transaction_detail_screen.dart';
@@ -85,6 +86,8 @@ class DashboardScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     _DebtSummaryRow(),
+                    const SizedBox(height: 16),
+                    const AiInsightCard(),
                     const SizedBox(height: 20),
                     SectionHeader(
                       title: 'Target menabung',

@@ -344,10 +344,10 @@ class AiService {
         m.contains('appcheck') ||
         m.contains('attestation')) {
       if (kDebugMode) {
-        return 'App Check menolak token (HTTP 403). Daftarkan debug token di '
-            'Firebase Console > App Check > Manage debug tokens, atau jalankan '
-            'dengan --dart-define=DISABLE_APPCHECK=true selama App Check '
-            'belum di-enforce.';
+        return 'App Check menolak token (HTTP 403). Pastikan debug token di '
+            'lib/ai/app_check_setup.dart sudah didaftarkan di Firebase '
+            'Console > App Check > Manage debug tokens (di app yang sama: '
+            'web / Android).';
       }
       return 'Verifikasi keamanan aplikasi gagal. '
           'Pastikan aplikasi dipasang dari sumber resmi lalu coba lagi.';

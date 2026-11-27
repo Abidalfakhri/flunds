@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../models/debt_item.dart';
@@ -11,56 +13,20 @@ enum DeleteCategoryResult { success, inUse, isLastOfType }
 
 enum UpdateCategoryResult { success, notFound, typeInUse }
 
-                                                                       
-class AppSnapshot {
-  final String ownerName;
-  final String businessName;
-  final String businessType;
-  final int runwayThresholdDays;
-  final double ownerCutPercentage;
-  final int startingBalance;
-  final bool taxEstimateEnabled;
-  final List<Category> categories;
-  final List<TransactionItem> transactions;
-  final List<DebtItem> debts;
-  final List<SavingsGoal> goals;
-
-  const AppSnapshot({
-    required this.ownerName,
-    required this.businessName,
-    required this.businessType,
-    required this.runwayThresholdDays,
-    required this.ownerCutPercentage,
-    required this.startingBalance,
-    required this.taxEstimateEnabled,
-    required this.categories,
-    required this.transactions,
-    required this.debts,
-    required this.goals,
-  });
-}
-
 class AppData extends ChangeNotifier {
-  AppData() {
-    _seedCategories();
-    _seedTransactions();
-    _seedDebts();
-    _seedGoals();
-  }
-
   int _idCounter = 0;
 
                                                                               
   String _newId(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}-${_idCounter++}';
 
-  // ---------- Sinkronisasi Firestore (hanya akun member) ----------
+  // ---------- Sinkronisasi Firestore (sumber data utama) ----------
+  // Semua data user disimpan di Firestore. List di bawah ini hanya salinan
+  // (cache) yang selalu diperbarui oleh listener real-time.
 
   FirestoreRepository? _repo;
-
-  void attachRepository(String uid) => _repo = FirestoreRepository(uid);
-
-  void detachRepository() => _repo = null;
+  final List<StreamSubscription<dynamic>> _subs = [];
+  bool _categoriesSeeded = false;
 
   /// Jalankan operasi Firestore tanpa menunggu hasilnya.
   /// UI tetap cepat; kalau offline, SDK Firestore mengantrekan tulisannya.
@@ -72,75 +38,130 @@ class AppData extends ChangeNotifier {
     });
   }
 
-  /// Muat kategori & transaksi dari Firestore. Return false kalau gagal.
-  Future<bool> loadFromRepository() async {
-    final repo = _repo;
-    if (repo == null) return false;
+  /// Mulai memantau data user dari Firestore (real-time).
+  /// Selesai setelah data pertama dari semua koleksi diterima.
+  Future<void> startSync(String uid) async {
+    await stopSync();
+    clearCache();
 
-    try {
-      final cats = await repo.loadCategories();
-      final txs = await repo.loadTransactions();
-      final debts = await repo.loadDebts();
-      final goals = await repo.loadGoals();
+    final repo = FirestoreRepository(uid);
+    _repo = repo;
 
-      if (cats.isEmpty) {
-        // Akun baru / belum pernah tersimpan: pakai kategori default
-        // yang sudah ada di memori, lalu simpan ke Firestore.
-        _sync((r) => r.saveCategories(_categories));
-      } else {
-        _categories
-          ..clear()
-          ..addAll(cats);
-      }
+    final firstData = <Future<void>>[];
 
+    Future<void> listen<T>(Stream<T> stream, void Function(T data) onData) {
+      final first = Completer<void>();
+      _subs.add(
+        stream.listen(
+          (data) {
+            onData(data);
+            notifyListeners();
+            if (!first.isCompleted) first.complete();
+          },
+          onError: (Object e) {
+            debugPrint('Listener Firestore error: $e');
+            if (!first.isCompleted) first.complete();
+          },
+        ),
+      );
+      return first.future;
+    }
+
+    firstData.add(listen<Map<String, dynamic>?>(repo.watchProfile(), _applyProfile));
+    firstData.add(listen<List<Category>>(repo.watchCategories(), (list) {
+      _categories
+        ..clear()
+        ..addAll(list);
+    }));
+    firstData.add(listen<List<TransactionItem>>(repo.watchTransactions(), (list) {
       _transactions
         ..clear()
-        ..addAll(txs);
-
+        ..addAll(list);
+    }));
+    firstData.add(listen<List<DebtItem>>(repo.watchDebts(), (list) {
       _debts
         ..clear()
-        ..addAll(debts);
-
+        ..addAll(list);
+    }));
+    firstData.add(listen<List<SavingsGoal>>(repo.watchGoals(), (list) {
       _goals
         ..clear()
-        ..addAll(goals);
+        ..addAll(list);
+    }));
 
-      notifyListeners();
-      return true;
-    } catch (e) {
-      debugPrint('Gagal memuat data dari Firestore: $e');
-      return false;
+    await Future.wait(firstData).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => <void>[],
+    );
+
+    // Akun lama yang dibuat sebelum kategori default disimpan ke Firestore.
+    if (_repo == repo && !_categoriesSeeded && _categories.isEmpty) {
+      _sync((r) async {
+        await r.saveCategories(defaultCategories());
+        await r.markCategoriesSeeded();
+      });
     }
   }
 
-  /// Kirim semua kategori & transaksi lokal ke Firestore
-  /// (dipakai saat register, termasuk data milik tamu).
-  void pushAllToRepository() {
-    _sync((r) async {
-      await r.saveCategories(_categories);
-      await r.saveTransactions(_transactions);
-      await r.saveDebts(_debts);
-      await r.saveGoals(_goals);
-    });
+  Future<void> stopSync() async {
+    for (final sub in _subs) {
+      await sub.cancel();
+    }
+    _subs.clear();
+    _repo = null;
+    _categoriesSeeded = false;
   }
 
-  /// Ganti isi Firestore dengan data lokal saat ini (dipakai saat reset).
-  void replaceRemoteWithLocal() {
+  void _applyProfile(Map<String, dynamic>? data) {
+    if (data == null) return;
+    ownerName = (data['name'] as String?) ?? ownerName;
+    businessName = (data['businessName'] as String?) ?? businessName;
+    businessType = (data['businessType'] as String?) ?? businessType;
+    startingBalance =
+        (data['startingBalance'] as num?)?.toInt() ?? startingBalance;
+    runwayThresholdDays =
+        (data['runwayThresholdDays'] as num?)?.toInt() ?? runwayThresholdDays;
+    ownerCutPercentage =
+        (data['ownerCutPercentage'] as num?)?.toDouble() ?? ownerCutPercentage;
+    taxEstimateEnabled =
+        (data['taxEstimateEnabled'] as bool?) ?? taxEstimateEnabled;
+    _categoriesSeeded = data['categoriesSeeded'] == true;
+  }
+
+  /// Kosongkan salinan lokal (dipakai saat ganti akun / keluar).
+  void clearCache() {
+    ownerName = '';
+    businessName = '';
+    businessType = 'UMKM';
+    runwayThresholdDays = 14;
+    ownerCutPercentage = 0.10;
+    startingBalance = 0;
+    taxEstimateEnabled = true;
+
+    _categories.clear();
+    _transactions.clear();
+    _debts.clear();
+    _goals.clear();
+
+    notifyListeners();
+  }
+
+  /// Hapus semua transaksi, utang, target tabungan, dan kategori di
+  /// Firestore, lalu pulihkan kategori default. Cache ikut berubah lewat listener.
+  void resetData() {
     _sync((r) async {
       await r.clearAll();
-      await r.saveCategories(_categories);
-      await r.saveTransactions(_transactions);
-      await r.saveDebts(_debts);
-      await r.saveGoals(_goals);
+      await r.saveCategories(defaultCategories());
+      await r.markCategoriesSeeded();
     });
   }
 
-  String ownerName = 'Budi';
-  String businessName = 'Warung Berkah';
-  String businessType = 'Toko Kelontong';
+  String ownerName = '';
+  String businessName = '';
+  String businessType = 'UMKM';
   int runwayThresholdDays = 14;
   double ownerCutPercentage = 0.10;
-  int startingBalance = 3500000;
+  int startingBalance = 0;
   bool taxEstimateEnabled = true;
 
   void updateProfile({
@@ -166,98 +187,6 @@ class AppData extends ChangeNotifier {
     notifyListeners();
   }
 
-                                                             
-  void resetAllData() {
-    ownerName = 'Budi';
-    businessName = 'Warung Berkah';
-    businessType = 'Toko Kelontong';
-    runwayThresholdDays = 14;
-    ownerCutPercentage = 0.10;
-    startingBalance = 3500000;
-    taxEstimateEnabled = true;
-
-    _categories.clear();
-    _transactions.clear();
-    _debts.clear();
-    _goals.clear();
-
-    _seedCategories();
-    _seedTransactions();
-    _seedDebts();
-    _seedGoals();
-
-    notifyListeners();
-  }
-
-                                                                      
-                                                      
-  void startFreshWorkspace({
-    required String ownerName,
-    required String businessName,
-    String businessType = 'UMKM',
-    int startingBalance = 0,
-  }) {
-    this.ownerName = ownerName;
-    this.businessName = businessName;
-    this.businessType = businessType;
-    this.startingBalance = startingBalance;
-    runwayThresholdDays = 14;
-    ownerCutPercentage = 0.10;
-    taxEstimateEnabled = true;
-
-    _categories.clear();
-    _transactions.clear();
-    _debts.clear();
-    _goals.clear();
-
-    _seedCategories();
-    for (var i = 0; i < _categories.length; i++) {
-      _categories[i] = _categories[i].copyWith(clearBudget: true);
-    }
-
-    notifyListeners();
-  }
-
-                                                                      
-                                                                        
-  AppSnapshot takeSnapshot() => AppSnapshot(
-        ownerName: ownerName,
-        businessName: businessName,
-        businessType: businessType,
-        runwayThresholdDays: runwayThresholdDays,
-        ownerCutPercentage: ownerCutPercentage,
-        startingBalance: startingBalance,
-        taxEstimateEnabled: taxEstimateEnabled,
-        categories: List.of(_categories),
-        transactions: List.of(_transactions),
-        debts: List.of(_debts),
-        goals: List.of(_goals),
-      );
-
-  void restoreSnapshot(AppSnapshot s) {
-    ownerName = s.ownerName;
-    businessName = s.businessName;
-    businessType = s.businessType;
-    runwayThresholdDays = s.runwayThresholdDays;
-    ownerCutPercentage = s.ownerCutPercentage;
-    startingBalance = s.startingBalance;
-    taxEstimateEnabled = s.taxEstimateEnabled;
-
-    _categories
-      ..clear()
-      ..addAll(s.categories);
-    _transactions
-      ..clear()
-      ..addAll(s.transactions);
-    _debts
-      ..clear()
-      ..addAll(s.debts);
-    _goals
-      ..clear()
-      ..addAll(s.goals);
-
-    notifyListeners();
-  }
 
                                                                           
                
@@ -1176,9 +1105,7 @@ class AppData extends ChangeNotifier {
                       
                                                                           
 
-  void _seedCategories() {
-    _categories.addAll(
-      const [
+  static const List<Category> _defaultCategoryTemplates = [
         Category(
           id: 'cat-penjualan',
           name: 'Penjualan Toko',
@@ -1199,7 +1126,6 @@ class AppData extends ChangeNotifier {
           type: CategoryType.expense,
           icon: Icons.shopping_cart_outlined,
           color: Color(0xFFC1533A),
-          monthlyBudget: 18000000,
         ),
         Category(
           id: 'cat-operasional',
@@ -1207,7 +1133,6 @@ class AppData extends ChangeNotifier {
           type: CategoryType.expense,
           icon: Icons.build_outlined,
           color: Color(0xFFB0552F),
-          monthlyBudget: 1500000,
         ),
         Category(
           id: 'cat-listrik',
@@ -1215,7 +1140,6 @@ class AppData extends ChangeNotifier {
           type: CategoryType.expense,
           icon: Icons.bolt_outlined,
           color: Color(0xFF8C4A2F),
-          monthlyBudget: 700000,
         ),
         Category(
           id: 'cat-owner-cut',
@@ -1231,550 +1155,12 @@ class AppData extends ChangeNotifier {
           icon: Icons.category_outlined,
           color: Color(0xFF6B6558),
         ),
-      ],
-    );
-  }
+  ];
 
-                                                                            
-                                                       
-  DateTime get _today {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
-  }
-
-  void _seedTransactions() {
-                                                       
-    DateTime d(int day) => _today.subtract(Duration(days: 30 - day));
-
-    _transactions.addAll(
-      [
-        TransactionItem(
-          id: 'trx-1',
-          title: 'Penjualan harian',
-          amount: 875000,
-          categoryId: 'cat-penjualan',
-          date: d(1),
-          note:
-              'Sembako, minuman, rokok, kebutuhan rumah',
-        ),
-
-        TransactionItem(
-          id: 'trx-2',
-          title: 'Belanja stok grosir',
-          amount: 2350000,
-          categoryId: 'cat-stok',
-          date: d(2),
-          note:
-              'Beras, minyak, gula, mie instan',
-        ),
-
-        TransactionItem(
-          id: 'trx-3',
-          title: 'Penjualan harian',
-          amount: 920000,
-          categoryId: 'cat-penjualan',
-          date: d(2),
-        ),
-
-        TransactionItem(
-          id: 'trx-4',
-          title: 'Penjualan harian',
-          amount: 810000,
-          categoryId: 'cat-penjualan',
-          date: d(3),
-        ),
-
-        TransactionItem(
-          id: 'trx-5',
-          title: 'Belanja stok minuman',
-          amount: 1250000,
-          categoryId: 'cat-stok',
-          date: d(4),
-          note:
-              'Air mineral, teh botol, kopi, minuman dingin',
-        ),
-
-        TransactionItem(
-          id: 'trx-6',
-          title: 'Penjualan harian',
-          amount: 965000,
-          categoryId: 'cat-penjualan',
-          date: d(4),
-        ),
-
-        TransactionItem(
-          id: 'trx-7',
-          title: 'Penjualan harian',
-          amount: 1080000,
-          categoryId: 'cat-penjualan',
-          date: d(5),
-        ),
-
-        TransactionItem(
-          id: 'trx-8',
-          title: 'Belanja stok rokok',
-          amount: 3200000,
-          categoryId: 'cat-stok',
-          date: d(6),
-          note:
-              'Stok rokok berbagai merek',
-        ),
-
-        TransactionItem(
-          id: 'trx-9',
-          title: 'Penjualan harian',
-          amount: 1240000,
-          categoryId: 'cat-penjualan',
-          date: d(6),
-        ),
-
-        TransactionItem(
-          id: 'trx-10',
-          title: 'Penjualan harian',
-          amount: 1185000,
-          categoryId: 'cat-penjualan',
-          date: d(7),
-        ),
-
-        TransactionItem(
-          id: 'trx-11',
-          title: 'Belanja sembako',
-          amount: 1850000,
-          categoryId: 'cat-stok',
-          date: d(8),
-          note:
-              'Telur, mie, tepung, gula, minyak',
-        ),
-
-        TransactionItem(
-          id: 'trx-12',
-          title: 'Penjualan harian',
-          amount: 1320000,
-          categoryId: 'cat-penjualan',
-          date: d(8),
-        ),
-
-        TransactionItem(
-          id: 'trx-13',
-          title: 'Penjualan harian',
-          amount: 990000,
-          categoryId: 'cat-penjualan',
-          date: d(9),
-        ),
-
-        TransactionItem(
-          id: 'trx-14',
-          title: 'Bayar listrik toko',
-          amount: 385000,
-          categoryId: 'cat-listrik',
-          date: d(10),
-          note:
-              'Tagihan listrik bulan September',
-        ),
-
-        TransactionItem(
-          id: 'trx-15',
-          title: 'Penjualan harian',
-          amount: 1450000,
-          categoryId: 'cat-penjualan',
-          date: d(10),
-        ),
-
-        TransactionItem(
-          id: 'trx-16',
-          title: 'Belanja stok grosir',
-          amount: 2750000,
-          categoryId: 'cat-stok',
-          date: d(11),
-          note:
-              'Stok kebutuhan harian',
-        ),
-
-        TransactionItem(
-          id: 'trx-17',
-          title: 'Penjualan harian',
-          amount: 1275000,
-          categoryId: 'cat-penjualan',
-          date: d(11),
-        ),
-
-        TransactionItem(
-          id: 'trx-18',
-          title: 'Penjualan harian',
-          amount: 1360000,
-          categoryId: 'cat-penjualan',
-          date: d(12),
-        ),
-
-        TransactionItem(
-          id: 'trx-19',
-          title: 'Belanja stok telur & mie',
-          amount: 1450000,
-          categoryId: 'cat-stok',
-          date: d(13),
-        ),
-
-        TransactionItem(
-          id: 'trx-20',
-          title: 'Penjualan harian',
-          amount: 1520000,
-          categoryId: 'cat-penjualan',
-          date: d(13),
-        ),
-
-        TransactionItem(
-          id: 'trx-21',
-          title: 'Ambil uang untuk kebutuhan pribadi',
-          amount: 500000,
-          categoryId: 'cat-owner-cut',
-          date: d(14),
-          isPersonal: true,
-        ),
-
-        TransactionItem(
-          id: 'trx-22',
-          title: 'Penjualan harian',
-          amount: 1390000,
-          categoryId: 'cat-penjualan',
-          date: d(14),
-        ),
-
-        TransactionItem(
-          id: 'trx-23',
-          title: 'Belanja stok rokok & korek',
-          amount: 2850000,
-          categoryId: 'cat-stok',
-          date: d(15),
-        ),
-
-        TransactionItem(
-          id: 'trx-24',
-          title: 'Penjualan harian',
-          amount: 1610000,
-          categoryId: 'cat-penjualan',
-          date: d(15),
-        ),
-
-        TransactionItem(
-          id: 'trx-25',
-          title: 'Penjualan harian',
-          amount: 1475000,
-          categoryId: 'cat-penjualan',
-          date: d(16),
-        ),
-
-        TransactionItem(
-          id: 'trx-26',
-          title: 'Belanja stok minuman',
-          amount: 1650000,
-          categoryId: 'cat-stok',
-          date: d(17),
-          note:
-              'Minuman kemasan dan air mineral',
-        ),
-
-        TransactionItem(
-          id: 'trx-27',
-          title: 'Penjualan harian',
-          amount: 1580000,
-          categoryId: 'cat-penjualan',
-          date: d(17),
-        ),
-
-        TransactionItem(
-          id: 'trx-28',
-          title: 'Bayar air & kebersihan toko',
-          amount: 180000,
-          categoryId: 'cat-listrik',
-          date: d(18),
-        ),
-
-        TransactionItem(
-          id: 'trx-29',
-          title: 'Penjualan harian',
-          amount: 1695000,
-          categoryId: 'cat-penjualan',
-          date: d(18),
-        ),
-
-        TransactionItem(
-          id: 'trx-30',
-          title: 'Belanja stok sembako',
-          amount: 2250000,
-          categoryId: 'cat-stok',
-          date: d(19),
-          note:
-              'Beras, minyak goreng, gula dan tepung',
-        ),
-
-        TransactionItem(
-          id: 'trx-31',
-          title: 'Penjualan harian',
-          amount: 1740000,
-          categoryId: 'cat-penjualan',
-          date: d(19),
-        ),
-
-        TransactionItem(
-          id: 'trx-32',
-          title: 'Penjualan harian',
-          amount: 1530000,
-          categoryId: 'cat-penjualan',
-          date: d(20),
-        ),
-
-        TransactionItem(
-          id: 'trx-33',
-          title: 'Belanja stok grosir',
-          amount: 3100000,
-          categoryId: 'cat-stok',
-          date: d(21),
-          note:
-              'Restock barang yang cepat habis',
-        ),
-
-        TransactionItem(
-          id: 'trx-34',
-          title: 'Penjualan harian',
-          amount: 1825000,
-          categoryId: 'cat-penjualan',
-          date: d(21),
-        ),
-
-        TransactionItem(
-          id: 'trx-35',
-          title: 'Penjualan harian',
-          amount: 1760000,
-          categoryId: 'cat-penjualan',
-          date: d(22),
-        ),
-
-        TransactionItem(
-          id: 'trx-36',
-          title: 'Belanja stok mie & makanan ringan',
-          amount: 1350000,
-          categoryId: 'cat-stok',
-          date: d(23),
-        ),
-
-        TransactionItem(
-          id: 'trx-37',
-          title: 'Penjualan harian',
-          amount: 1680000,
-          categoryId: 'cat-penjualan',
-          date: d(23),
-        ),
-
-        TransactionItem(
-          id: 'trx-38',
-          title: 'Penjualan harian',
-          amount: 1910000,
-          categoryId: 'cat-penjualan',
-          date: d(24),
-        ),
-
-        TransactionItem(
-          id: 'trx-39',
-          title: 'Biaya transport ambil barang',
-          amount: 125000,
-          categoryId: 'cat-operasional',
-          date: d(25),
-          note:
-              'Bensin dan ongkos ambil barang grosir',
-        ),
-
-        TransactionItem(
-          id: 'trx-40',
-          title: 'Penjualan harian',
-          amount: 1850000,
-          categoryId: 'cat-penjualan',
-          date: d(25),
-        ),
-
-        TransactionItem(
-          id: 'trx-41',
-          title: 'Belanja stok minuman & es',
-          amount: 1750000,
-          categoryId: 'cat-stok',
-          date: d(26),
-        ),
-
-        TransactionItem(
-          id: 'trx-42',
-          title: 'Penjualan harian',
-          amount: 2025000,
-          categoryId: 'cat-penjualan',
-          date: d(26),
-        ),
-
-        TransactionItem(
-          id: 'trx-43',
-          title: 'Penjualan harian',
-          amount: 1940000,
-          categoryId: 'cat-penjualan',
-          date: d(27),
-        ),
-
-        TransactionItem(
-          id: 'trx-44',
-          title: 'Belanja stok akhir minggu',
-          amount: 2450000,
-          categoryId: 'cat-stok',
-          date: d(28),
-          note:
-              'Persiapan stok akhir bulan',
-        ),
-
-        TransactionItem(
-          id: 'trx-45',
-          title: 'Penjualan harian',
-          amount: 2150000,
-          categoryId: 'cat-penjualan',
-          date: d(28),
-        ),
-
-        TransactionItem(
-          id: 'trx-46',
-          title: 'Penjualan harian',
-          amount: 2075000,
-          categoryId: 'cat-penjualan',
-          date: d(29),
-        ),
-
-        TransactionItem(
-          id: 'trx-47',
-          title: 'Ambil uang untuk kebutuhan pribadi',
-          amount: 350000,
-          categoryId: 'cat-owner-cut',
-          date: d(29),
-          isPersonal: true,
-        ),
-
-        TransactionItem(
-          id: 'trx-48',
-          title: 'Penjualan harian',
-          amount: 2280000,
-          categoryId: 'cat-penjualan',
-          date: d(30),
-        ),
-      ],
-    );
-  }
-
-  void _seedDebts() {
-                                                                  
-    DateTime d(int day) => _today.add(Duration(days: day - 26));
-
-    _debts.addAll(
-      [
-        DebtItem(
-          id: 'debt-1',
-          type: DebtType.payable,
-          partyName: 'PT Grosir Makmur',
-          amount: 2850000,
-          dueDate: d(30),
-          createdAt: d(25),
-          note:
-              'Pembelian stok sembako dan minuman',
-        ),
-
-        DebtItem(
-          id: 'debt-2',
-          type: DebtType.payable,
-          partyName: 'Agen Rokok Sejahtera',
-          amount: 1750000,
-          dueDate: d(29),
-          createdAt: d(22),
-          note:
-              'Stok rokok minggu ini',
-        ),
-
-        DebtItem(
-          id: 'debt-3',
-          type: DebtType.receivable,
-          partyName: 'Warung Bu Sari',
-          amount: 450000,
-          dueDate: d(28),
-          createdAt: d(20),
-          note:
-              'Pembelian barang secara tempo',
-        ),
-
-        DebtItem(
-          id: 'debt-4',
-          type: DebtType.receivable,
-          partyName: 'Pak Andi',
-          amount: 275000,
-          dueDate: d(27),
-          createdAt: d(18),
-          note:
-              'Belanja kebutuhan rumah',
-        ),
-
-        DebtItem(
-          id: 'debt-5',
-          type: DebtType.payable,
-          partyName: 'Supplier Minuman Segar',
-          amount: 1200000,
-          dueDate: d(30),
-          createdAt: d(26),
-          note:
-              'Stok minuman dan air mineral',
-        ),
-
-        DebtItem(
-          id: 'debt-6',
-          type: DebtType.receivable,
-          partyName: 'Tetangga Kompleks',
-          amount: 180000,
-          dueDate: d(24),
-          createdAt: d(15),
-          isPaid: true,
-          note:
-              'Belanja kebutuhan rumah',
-        ),
-      ],
-    );
-  }
-
-  void _seedGoals() {
-    _goals.addAll(
-      [
-        SavingsGoal(
-          id: 'goal-1',
-          name: 'Tambah Modal Stok',
-          targetAmount: 10000000,
-          currentAmount: 6500000,
-          targetDate:
-              _today.add(const Duration(days: 90)),
-          icon: Icons.inventory_2_outlined,
-          color: Color(0xFF185FA5),
-        ),
-
-        SavingsGoal(
-          id: 'goal-2',
-          name: 'Dana Darurat Toko',
-          targetAmount: 8000000,
-          currentAmount: 3500000,
-          targetDate:
-              _today.add(const Duration(days: 180)),
-          icon: Icons.shield_outlined,
-          color: Color(0xFF2F7A4D),
-        ),
-
-        SavingsGoal(
-          id: 'goal-3',
-          name: 'Tambah Freezer',
-          targetAmount: 6000000,
-          currentAmount: 2800000,
-          targetDate:
-              _today.add(const Duration(days: 120)),
-          icon: Icons.kitchen_outlined,
-          color: Color(0xFFD97757),
-        ),
-      ],
-    );
-  }
+  /// Kategori awal untuk akun baru (tanpa budget).
+  static List<Category> defaultCategories() => [
+        for (final c in _defaultCategoryTemplates) c.copyWith(clearBudget: true),
+      ];
 }
 
 final AppData appData = AppData();

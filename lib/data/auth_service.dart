@@ -1,11 +1,14 @@
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import 'app_data.dart';
+import 'firestore_repository.dart';
 
-enum AccountKind { demo, member, guest }
+/// member = akun email/password, guest = akun anonim Firebase (mode tamu).
+enum AccountKind { member, guest }
 
 class AuthUser {
   final String id;
@@ -19,13 +22,9 @@ class AuthUser {
   });
 
   bool get isGuest => kind == AccountKind.guest;
-  bool get isDemo => kind == AccountKind.demo;
 }
 
 class AuthService extends ChangeNotifier {
-  static const demoEmail = 'budi@gmail.com';
-  static const demoPassword = '123';
-
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -35,85 +34,51 @@ class AuthService extends ChangeNotifier {
   bool get isSignedIn => _current != null;
   bool get isGuest => _current?.isGuest ?? false;
 
-  int _guestCounter = 0;
-
-  static final _emailPattern =
-  RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
+  static final _emailPattern = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
 
   static bool isValidEmail(String value) =>
       _emailPattern.hasMatch(value.trim());
+
+  AuthUser _toAuthUser(User user, {String fallbackEmail = ''}) => AuthUser(
+        id: user.uid,
+        email: user.email ?? fallbackEmail,
+        kind: user.isAnonymous ? AccountKind.guest : AccountKind.member,
+      );
 
   Future<void> initialize() async {
     final user = _firebaseAuth.currentUser;
 
     if (user != null) {
-      _current = AuthUser(
-        id: user.uid,
-        email: user.email ?? '',
-        kind: AccountKind.member,
-      );
-
-      await _startMemberSession(user.uid);
+      _current = _toAuthUser(user);
+      await appData.startSync(user.uid);
     }
 
     notifyListeners();
   }
 
-  /// Siapkan workspace kosong, muat profil, lalu hubungkan & muat data
-  /// (kategori + transaksi) dari Firestore.
-  Future<void> _startMemberSession(String uid) async {
-    appData.detachRepository();
-    appData.startFreshWorkspace(
-      ownerName: 'Pengguna',
-      businessName: 'Usaha Saya',
-    );
-
-    await _loadProfile(uid);
-
-    appData.attachRepository(uid);
-    await appData.loadFromRepository();
-  }
-
-  Future<void> _loadProfile(String uid) async {
-    final doc = await _firestore.collection('users').doc(uid).get();
-
-    if (!doc.exists) return;
-
-    final data = doc.data();
-    if (data == null) return;
-
-    appData.updateProfile(
-      ownerName: data['name'] as String?,
-      businessName: data['businessName'] as String?,
-      businessType: data['businessType'] as String?,
-      startingBalance: (data['startingBalance'] as num?)?.toInt(),
-      runwayThresholdDays:
-      (data['runwayThresholdDays'] as num?)?.toInt(),
-      ownerCutPercentage:
-      (data['ownerCutPercentage'] as num?)?.toDouble(),
-      taxEstimateEnabled: data['taxEstimateEnabled'] as bool?,
-    );
-  }
-
-  Future<void> _saveProfile({
+  /// Buat dokumen profil + kategori default untuk akun baru.
+  Future<void> _createAccountData({
     required String uid,
     required String name,
     required String businessName,
-    required int startingBalance,
+    int startingBalance = 0,
   }) async {
     await _firestore.collection('users').doc(uid).set({
       'uid': uid,
       'name': name,
       'businessName': businessName,
-      'businessType': appData.businessType,
+      'businessType': 'UMKM',
       'email': _firebaseAuth.currentUser?.email ?? '',
       'startingBalance': startingBalance,
-      'runwayThresholdDays': appData.runwayThresholdDays,
-      'ownerCutPercentage': appData.ownerCutPercentage,
-      'taxEstimateEnabled': appData.taxEstimateEnabled,
+      'runwayThresholdDays': 14,
+      'ownerCutPercentage': 0.10,
+      'taxEstimateEnabled': true,
+      'categoriesSeeded': true,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    await FirestoreRepository(uid).saveCategories(AppData.defaultCategories());
   }
 
   Future<void> updateProfile({
@@ -127,7 +92,7 @@ class AuthService extends ChangeNotifier {
   }) async {
     final user = _firebaseAuth.currentUser;
 
-    if (user == null || _current?.kind != AccountKind.member) {
+    if (user == null) {
       throw Exception('Pengguna belum login.');
     }
 
@@ -147,8 +112,7 @@ class AuthService extends ChangeNotifier {
 
   Future<String?> signIn(String email, String password) async {
     try {
-      final credential =
-      await _firebaseAuth.signInWithEmailAndPassword(
+      final credential = await _firebaseAuth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
@@ -159,13 +123,9 @@ class AuthService extends ChangeNotifier {
         return 'Gagal mendapatkan data akun.';
       }
 
-      _current = AuthUser(
-        id: user.uid,
-        email: user.email ?? email.trim(),
-        kind: AccountKind.member,
-      );
+      _current = _toAuthUser(user, fallbackEmail: email.trim());
 
-      await _startMemberSession(user.uid);
+      await appData.startSync(user.uid);
       notifyListeners();
 
       return null;
@@ -190,32 +150,38 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<void> signInAsDemo() async {
-    _current = const AuthUser(
-      id: 'demo',
-      email: demoEmail,
-      kind: AccountKind.demo,
-    );
+  /// Mode tamu memakai akun anonim Firebase, jadi datanya tetap
+  /// tersimpan di Firestore dan bisa diubah jadi akun email saat daftar.
+  Future<String?> continueAsGuest() async {
+    try {
+      final credential = await _firebaseAuth.signInAnonymously();
+      final user = credential.user;
 
-    appData.detachRepository();
-    appData.resetAllData();
-    notifyListeners();
-  }
+      if (user == null) {
+        return 'Gagal memulai mode tamu.';
+      }
 
-  Future<void> continueAsGuest() async {
-    appData.detachRepository();
-    appData.startFreshWorkspace(
-      ownerName: 'Tamu',
-      businessName: 'Usaha Saya',
-    );
+      await _createAccountData(
+        uid: user.uid,
+        name: 'Tamu',
+        businessName: 'Usaha Saya',
+      );
 
-    _current = AuthUser(
-      id: 'guest-${_guestCounter++}',
-      email: '',
-      kind: AccountKind.guest,
-    );
+      _current = _toAuthUser(user);
 
-    notifyListeners();
+      await appData.startSync(user.uid);
+      notifyListeners();
+
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'operation-not-allowed') {
+        return 'Mode tamu belum diaktifkan di Firebase '
+            '(Authentication → Sign-in method → Anonymous).';
+      }
+      return e.message ?? 'Gagal memulai mode tamu.';
+    } catch (e) {
+      return 'Terjadi kesalahan: $e';
+    }
   }
 
   Future<String?> register({
@@ -226,54 +192,56 @@ class AuthService extends ChangeNotifier {
     int startingBalance = 0,
   }) async {
     try {
-      final credential =
-      await _firebaseAuth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      final current = _firebaseAuth.currentUser;
+      final User user;
 
-      final user = credential.user;
-
-      if (user == null) {
-        return 'Gagal membuat akun.';
-      }
-
-      if (isGuest) {
-        appData.updateProfile(
-          ownerName: name.trim(),
-          businessName: businessName.trim(),
+      if (current != null && current.isAnonymous) {
+        // Tamu -> akun email. UID sama, jadi semua data tamu ikut terbawa.
+        final linked = await current.linkWithCredential(
+          EmailAuthProvider.credential(
+            email: email.trim(),
+            password: password,
+          ),
         );
+        user = linked.user ?? current;
+
+        await _firestore.collection('users').doc(user.uid).set({
+          'name': name.trim(),
+          'businessName': businessName.trim(),
+          'email': user.email ?? email.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       } else {
-        appData.startFreshWorkspace(
-          ownerName: name.trim(),
+        final credential = await _firebaseAuth.createUserWithEmailAndPassword(
+          email: email.trim(),
+          password: password,
+        );
+
+        final created = credential.user;
+
+        if (created == null) {
+          return 'Gagal membuat akun.';
+        }
+        user = created;
+
+        await _createAccountData(
+          uid: user.uid,
+          name: name.trim(),
           businessName: businessName.trim(),
           startingBalance: startingBalance,
         );
+
+        await appData.startSync(user.uid);
       }
 
-      await _saveProfile(
-        uid: user.uid,
-        name: name.trim(),
-        businessName: businessName.trim(),
-        startingBalance: appData.startingBalance,
-      );
-
-      // Hubungkan ke Firestore dan simpan kategori (+ transaksi tamu, jika ada).
-      appData.attachRepository(user.uid);
-      appData.pushAllToRepository();
-
-      _current = AuthUser(
-        id: user.uid,
-        email: user.email ?? email.trim(),
-        kind: AccountKind.member,
-      );
-
+      _current = _toAuthUser(user, fallbackEmail: email.trim());
       notifyListeners();
 
       return null;
     } on FirebaseAuthException catch (e) {
       switch (e.code) {
         case 'email-already-in-use':
+        case 'credential-already-in-use':
           return 'Email ini sudah terdaftar. Silakan masuk.';
         case 'invalid-email':
           return 'Format email tidak valid.';
@@ -290,33 +258,34 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
-    appData.detachRepository();
+    final firebaseUser = _firebaseAuth.currentUser;
+    final wasGuest = _current?.isGuest ?? false;
 
-    if (_current?.kind == AccountKind.member) {
-      await _firebaseAuth.signOut();
+    await appData.stopSync();
+
+    if (wasGuest && firebaseUser != null) {
+      // Data tamu tidak bisa diakses lagi setelah keluar, jadi dihapus.
+      try {
+        await FirestoreRepository(firebaseUser.uid)
+            .deleteUserData()
+            .timeout(const Duration(seconds: 8));
+        await firebaseUser.delete();
+      } catch (e) {
+        debugPrint('Gagal menghapus data tamu: $e');
+      }
     }
+
+    await _firebaseAuth.signOut();
+    appData.clearCache();
 
     _current = null;
     notifyListeners();
   }
 
+  /// Hapus semua catatan di Firestore dan pulihkan kategori default.
   void resetCurrentWorkspace() {
-    final user = _current;
-    if (user == null) return;
-
-    if (user.isDemo) {
-      appData.resetAllData();
-    } else {
-      appData.startFreshWorkspace(
-        ownerName: appData.ownerName,
-        businessName: appData.businessName,
-        businessType: appData.businessType,
-      );
-
-      if (user.kind == AccountKind.member) {
-        appData.replaceRemoteWithLocal();
-      }
-    }
+    if (_current == null) return;
+    appData.resetData();
   }
 }
 

@@ -6,8 +6,11 @@ import '../models/savings_goal.dart';
 import '../models/transaction_item.dart';
 
 /// Akses Firestore untuk data milik satu user:
+///   users/{uid}                 -> profil
 ///   users/{uid}/categories/{id}
 ///   users/{uid}/transactions/{id}
+///   users/{uid}/debts/{id}
+///   users/{uid}/goals/{id}
 class FirestoreRepository {
   FirestoreRepository(this.uid);
 
@@ -23,19 +26,40 @@ class FirestoreRepository {
   CollectionReference<Map<String, dynamic>> get _transactions =>
       _userDoc.collection('transactions');
 
-  // ---------- Kategori ----------
+  CollectionReference<Map<String, dynamic>> get _debts =>
+      _userDoc.collection('debts');
 
-  Future<List<Category>> loadCategories() async {
-    final snap = await _categories.get();
-    final list =
-        snap.docs.map((d) => Category.fromMap(d.id, d.data())).toList();
-    // Pemasukan dulu, lalu urut nama.
-    list.sort((a, b) {
-      if (a.type != b.type) return a.isIncome ? -1 : 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-    return list;
-  }
+  CollectionReference<Map<String, dynamic>> get _goals =>
+      _userDoc.collection('goals');
+
+  // ---------- Pantau perubahan (real-time) ----------
+
+  Stream<Map<String, dynamic>?> watchProfile() =>
+      _userDoc.snapshots().map((s) => s.data());
+
+  Stream<List<Category>> watchCategories() =>
+      _categories.snapshots().map((snap) {
+        final list =
+            snap.docs.map((d) => Category.fromMap(d.id, d.data())).toList();
+        // Pemasukan dulu, lalu urut nama.
+        list.sort((a, b) {
+          if (a.type != b.type) return a.isIncome ? -1 : 1;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        return list;
+      });
+
+  Stream<List<TransactionItem>> watchTransactions() =>
+      _transactions.snapshots().map((snap) =>
+          snap.docs.map((d) => TransactionItem.fromMap(d.id, d.data())).toList());
+
+  Stream<List<DebtItem>> watchDebts() => _debts.snapshots().map(
+      (snap) => snap.docs.map((d) => DebtItem.fromMap(d.id, d.data())).toList());
+
+  Stream<List<SavingsGoal>> watchGoals() => _goals.snapshots().map((snap) =>
+      snap.docs.map((d) => SavingsGoal.fromMap(d.id, d.data())).toList());
+
+  // ---------- Kategori ----------
 
   Future<void> saveCategory(Category c) => _categories.doc(c.id).set(c.toMap());
 
@@ -49,14 +73,11 @@ class FirestoreRepository {
     await batch.commit();
   }
 
-  // ---------- Transaksi ----------
+  /// Tandai bahwa kategori default sudah dibuat untuk akun ini.
+  Future<void> markCategoriesSeeded() =>
+      _userDoc.set({'categoriesSeeded': true}, SetOptions(merge: true));
 
-  Future<List<TransactionItem>> loadTransactions() async {
-    final snap = await _transactions.get();
-    return snap.docs
-        .map((d) => TransactionItem.fromMap(d.id, d.data()))
-        .toList();
-  }
+  // ---------- Transaksi ----------
 
   Future<void> saveTransaction(TransactionItem t) =>
       _transactions.doc(t.id).set(t.toMap());
@@ -64,67 +85,22 @@ class FirestoreRepository {
   Future<void> deleteTransaction(String id) =>
       _transactions.doc(id).delete();
 
-  /// Batch Firestore maksimal 500 operasi, jadi dipecah per 400.
-  Future<void> saveTransactions(List<TransactionItem> items) async {
-    for (var i = 0; i < items.length; i += 400) {
-      final batch = _db.batch();
-      for (final t in items.skip(i).take(400)) {
-        batch.set(_transactions.doc(t.id), t.toMap());
-      }
-      await batch.commit();
-    }
-  }
-
   // ---------- Utang / Piutang ----------
-
-  CollectionReference<Map<String, dynamic>> get _debts =>
-      _userDoc.collection('debts');
-
-  Future<List<DebtItem>> loadDebts() async {
-    final snap = await _debts.get();
-    return snap.docs.map((d) => DebtItem.fromMap(d.id, d.data())).toList();
-  }
 
   Future<void> saveDebt(DebtItem d) => _debts.doc(d.id).set(d.toMap());
 
   Future<void> deleteDebt(String id) => _debts.doc(id).delete();
 
-  Future<void> saveDebts(List<DebtItem> items) async {
-    for (var i = 0; i < items.length; i += 400) {
-      final batch = _db.batch();
-      for (final d in items.skip(i).take(400)) {
-        batch.set(_debts.doc(d.id), d.toMap());
-      }
-      await batch.commit();
-    }
-  }
-
   // ---------- Target tabungan ----------
-
-  CollectionReference<Map<String, dynamic>> get _goals =>
-      _userDoc.collection('goals');
-
-  Future<List<SavingsGoal>> loadGoals() async {
-    final snap = await _goals.get();
-    return snap.docs.map((d) => SavingsGoal.fromMap(d.id, d.data())).toList();
-  }
 
   Future<void> saveGoal(SavingsGoal g) => _goals.doc(g.id).set(g.toMap());
 
   Future<void> deleteGoal(String id) => _goals.doc(id).delete();
 
-  Future<void> saveGoals(List<SavingsGoal> items) async {
-    for (var i = 0; i < items.length; i += 400) {
-      final batch = _db.batch();
-      for (final g in items.skip(i).take(400)) {
-        batch.set(_goals.doc(g.id), g.toMap());
-      }
-      await batch.commit();
-    }
-  }
+  // ---------- Hapus data ----------
 
-  // ---------- Reset ----------
-
+  /// Hapus semua isi 4 koleksi (profil tetap ada).
+  /// Batch Firestore maksimal 500 operasi, jadi dipecah per 400.
   Future<void> clearAll() async {
     for (final col in [_categories, _transactions, _debts, _goals]) {
       final snap = await col.get();
@@ -136,5 +112,11 @@ class FirestoreRepository {
         await batch.commit();
       }
     }
+  }
+
+  /// Hapus semua data user termasuk dokumen profilnya.
+  Future<void> deleteUserData() async {
+    await clearAll();
+    await _userDoc.delete();
   }
 }

@@ -3,49 +3,54 @@ import 'dart:async';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
-/// Konfigurasi App Check. Nilai diberikan lewat --dart-define agar tidak
-/// ada token/kunci yang ikut ter-commit ke repository.
+/// App Check untuk Firebase AI Logic.
 ///
-///   flutter run --dart-define=APPCHECK_WEB_DEBUG_TOKEN=<token-debug-web>
-///   flutter build web --dart-define=RECAPTCHA_SITE_KEY=<site-key-v3>
-const String _webDebugToken =
-    String.fromEnvironment('APPCHECK_WEB_DEBUG_TOKEN');
+/// Catatan penting: firebase_ai mengambil token App Check SENDIRI pada setiap
+/// permintaan, jadi App Check tidak bisa "dimatikan" dari sisi aplikasi. Yang
+/// bisa dilakukan adalah memberinya token yang valid.
+///
+/// MODE TUGAS KULIAH (default): satu debug token TETAP dipakai di semua
+/// device (web, Android, iOS). Daftarkan token ini SEKALI di Firebase Console
+/// > App Check > Manage debug tokens, dan semua device langsung bisa memakai
+/// AI tanpa pendaftaran per device.
+///
+/// Risiko: token ikut tertanam di aplikasi, jadi siapa pun yang membongkar
+/// APK bisa memakainya. Batasi kuota Firebase AI Logic, dan jangan pakai cara
+/// ini untuk rilis publik.
+///
+/// MODE RILIS PUBLIK: jalankan/build dengan --dart-define=APPCHECK_DEBUG_TOKEN=
+/// (kosong) agar memakai Play Integrity / DeviceCheck / reCAPTCHA asli.
+const String _debugToken = String.fromEnvironment(
+  'APPCHECK_DEBUG_TOKEN',
+  defaultValue: 'f18287f2-a0bd-476e-9770-8dcabe3aaec4',
+);
+
 const String _recaptchaSiteKey = String.fromEnvironment('RECAPTCHA_SITE_KEY');
-
-
-const bool _disableAppCheck = 
-    bool.fromEnvironment('DISABLE_APPCHECK', defaultValue: true);
 
 /// Dipanggil SEKALI di main(), setelah Firebase.initializeApp().
 ///
 /// Tidak pernah melempar error: kalau gagal, aplikasi tetap jalan dan fitur AI
 /// akan menampilkan pesan yang jelas saat dipakai.
 Future<void> initAppCheck() async {
-  if (_disableAppCheck) {
-    debugPrint('[AppCheck] DIMATIKAN lewat DISABLE_APPCHECK.');
-    return;
-  }
+  final useDebug = _debugToken.isNotEmpty;
+
   try {
     await FirebaseAppCheck.instance
         .activate(
-          providerWeb: kDebugMode
-              // Tanpa token: SDK membuat token sendiri dan mencetaknya di
-              // console browser ("App Check debug token: ...").
-              ? WebDebugProvider(
-                  debugToken: _webDebugToken.isEmpty ? null : _webDebugToken,
-                )
+          providerWeb: useDebug
+              ? WebDebugProvider(debugToken: _debugToken)
               : (_recaptchaSiteKey.isEmpty
                   ? null
                   : ReCaptchaV3Provider(_recaptchaSiteKey)),
-          providerAndroid: kDebugMode
-              ? const AndroidDebugProvider()
+          providerAndroid: useDebug
+              ? AndroidDebugProvider(debugToken: _debugToken)
               : const AndroidPlayIntegrityProvider(),
-          providerApple: kDebugMode
-              ? const AppleDebugProvider()
+          providerApple: useDebug
+              ? AppleDebugProvider(debugToken: _debugToken)
               : const AppleDeviceCheckProvider(),
         )
         .timeout(const Duration(seconds: 8));
-    debugPrint('[AppCheck] aktif.');
+    debugPrint('[AppCheck] aktif (${useDebug ? "debug token tetap" : "provider asli"}).');
   } catch (e) {
     debugPrint('[AppCheck] gagal diaktifkan: $e');
   }

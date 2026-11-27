@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/category.dart';
 import '../models/debt_item.dart';
+import '../models/savings_goal.dart';
 import '../models/transaction_item.dart';
 
 /// Akses Firestore untuk data milik satu user:
@@ -98,10 +99,34 @@ class FirestoreRepository {
     }
   }
 
+  // ---------- Target tabungan ----------
+
+  CollectionReference<Map<String, dynamic>> get _goals =>
+      _userDoc.collection('goals');
+
+  Future<List<SavingsGoal>> loadGoals() async {
+    final snap = await _goals.get();
+    return snap.docs.map((d) => SavingsGoal.fromMap(d.id, d.data())).toList();
+  }
+
+  Future<void> saveGoal(SavingsGoal g) => _goals.doc(g.id).set(g.toMap());
+
+  Future<void> deleteGoal(String id) => _goals.doc(id).delete();
+
+  Future<void> saveGoals(List<SavingsGoal> items) async {
+    for (var i = 0; i < items.length; i += 400) {
+      final batch = _db.batch();
+      for (final g in items.skip(i).take(400)) {
+        batch.set(_goals.doc(g.id), g.toMap());
+      }
+      await batch.commit();
+    }
+  }
+
   // ---------- Reset ----------
 
   Future<void> clearAll() async {
-    for (final col in [_categories, _transactions, _debts]) {
+    for (final col in [_categories, _transactions, _debts, _goals]) {
       final snap = await col.get();
       for (var i = 0; i < snap.docs.length; i += 400) {
         final batch = _db.batch();

@@ -81,6 +81,7 @@ class AppData extends ChangeNotifier {
       final cats = await repo.loadCategories();
       final txs = await repo.loadTransactions();
       final debts = await repo.loadDebts();
+      final goals = await repo.loadGoals();
 
       if (cats.isEmpty) {
         // Akun baru / belum pernah tersimpan: pakai kategori default
@@ -100,6 +101,10 @@ class AppData extends ChangeNotifier {
         ..clear()
         ..addAll(debts);
 
+      _goals
+        ..clear()
+        ..addAll(goals);
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -115,6 +120,7 @@ class AppData extends ChangeNotifier {
       await r.saveCategories(_categories);
       await r.saveTransactions(_transactions);
       await r.saveDebts(_debts);
+      await r.saveGoals(_goals);
     });
   }
 
@@ -125,6 +131,7 @@ class AppData extends ChangeNotifier {
       await r.saveCategories(_categories);
       await r.saveTransactions(_transactions);
       await r.saveDebts(_debts);
+      await r.saveGoals(_goals);
     });
   }
 
@@ -949,6 +956,7 @@ class AppData extends ChangeNotifier {
     );
 
     _goals.add(goal);
+    _sync((r) => r.saveGoal(goal));
     notifyListeners();
 
     return goal;
@@ -976,6 +984,8 @@ class AppData extends ChangeNotifier {
           currentAmount: current,
         );
 
+    final saved = _goals[index];
+    _sync((r) => r.saveGoal(saved));
     notifyListeners();
   }
 
@@ -1006,6 +1016,8 @@ class AppData extends ChangeNotifier {
               goal.currentAmount + applied,
         );
 
+    final saved = _goals[index];
+    _sync((r) => r.saveGoal(saved));
     notifyListeners();
 
     return applied;
@@ -1022,6 +1034,7 @@ class AppData extends ChangeNotifier {
         _goals.length != before;
 
     if (removed) {
+      _sync((r) => r.deleteGoal(id));
       notifyListeners();
     }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Daftar ikon yang boleh dipakai kategori.
+/// Daftar ikon yang boleh dipakai kategori dan target tabungan.
 /// Firestore menyimpan KUNCI (string), bukan IconData, supaya aman
 /// untuk build release (icon tree-shaking).
 /// Kalau menambah pilihan ikon baru di form, tambahkan juga di sini.
@@ -18,6 +18,13 @@ const Map<String, IconData> iconRegistry = {
   'receipt_long': Icons.receipt_long_outlined,
   'shopping_cart': Icons.shopping_cart_outlined,
   'bolt': Icons.bolt_outlined,
+  // Ikon target tabungan
+  'flag': Icons.flag_outlined,
+  'kitchen': Icons.kitchen_outlined,
+  'shield': Icons.shield_outlined,
+  'home_repair': Icons.home_repair_service_outlined,
+  'celebration': Icons.celebration_outlined,
+  'inventory_2': Icons.inventory_2_outlined,
 };
 
 String iconToKey(IconData icon) {
@@ -27,5 +34,5 @@ String iconToKey(IconData icon) {
   return 'category';
 }
 
-IconData iconFromKey(String? key) =>
-    iconRegistry[key] ?? Icons.category_outlined;
+IconData iconFromKey(String? key, {IconData fallback = Icons.category_outlined}) =>
+    iconRegistry[key] ?? fallback;

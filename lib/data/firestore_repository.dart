@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/category.dart';
+import '../models/debt_item.dart';
 import '../models/transaction_item.dart';
 
 /// Akses Firestore untuk data milik satu user:
@@ -73,10 +74,34 @@ class FirestoreRepository {
     }
   }
 
+  // ---------- Utang / Piutang ----------
+
+  CollectionReference<Map<String, dynamic>> get _debts =>
+      _userDoc.collection('debts');
+
+  Future<List<DebtItem>> loadDebts() async {
+    final snap = await _debts.get();
+    return snap.docs.map((d) => DebtItem.fromMap(d.id, d.data())).toList();
+  }
+
+  Future<void> saveDebt(DebtItem d) => _debts.doc(d.id).set(d.toMap());
+
+  Future<void> deleteDebt(String id) => _debts.doc(id).delete();
+
+  Future<void> saveDebts(List<DebtItem> items) async {
+    for (var i = 0; i < items.length; i += 400) {
+      final batch = _db.batch();
+      for (final d in items.skip(i).take(400)) {
+        batch.set(_debts.doc(d.id), d.toMap());
+      }
+      await batch.commit();
+    }
+  }
+
   // ---------- Reset ----------
 
   Future<void> clearAll() async {
-    for (final col in [_categories, _transactions]) {
+    for (final col in [_categories, _transactions, _debts]) {
       final snap = await col.get();
       for (var i = 0; i < snap.docs.length; i += 400) {
         final batch = _db.batch();

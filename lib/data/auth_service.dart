@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'app_data.dart';
 import 'firestore_repository.dart';
 
-/// member = akun email/password, guest = akun anonim Firebase (mode tamu).
 enum AccountKind { member, guest }
 
 class AuthUser {

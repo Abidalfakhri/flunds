@@ -5,12 +5,7 @@ import '../models/debt_item.dart';
 import '../models/savings_goal.dart';
 import '../models/transaction_item.dart';
 
-/// Akses Firestore untuk data milik satu user:
-///   users/{uid}                 -> profil
-///   users/{uid}/categories/{id}
-///   users/{uid}/transactions/{id}
-///   users/{uid}/debts/{id}
-///   users/{uid}/goals/{id}
+
 class FirestoreRepository {
   FirestoreRepository(this.uid);
 

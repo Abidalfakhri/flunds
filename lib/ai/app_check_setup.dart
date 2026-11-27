@@ -3,23 +3,7 @@ import 'dart:async';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
-/// App Check untuk Firebase AI Logic.
-///
-/// Catatan penting: firebase_ai mengambil token App Check SENDIRI pada setiap
-/// permintaan, jadi App Check tidak bisa "dimatikan" dari sisi aplikasi. Yang
-/// bisa dilakukan adalah memberinya token yang valid.
-///
-/// MODE TUGAS KULIAH (default): satu debug token TETAP dipakai di semua
-/// device (web, Android, iOS). Daftarkan token ini SEKALI di Firebase Console
-/// > App Check > Manage debug tokens, dan semua device langsung bisa memakai
-/// AI tanpa pendaftaran per device.
-///
-/// Risiko: token ikut tertanam di aplikasi, jadi siapa pun yang membongkar
-/// APK bisa memakainya. Batasi kuota Firebase AI Logic, dan jangan pakai cara
-/// ini untuk rilis publik.
-///
-/// MODE RILIS PUBLIK: jalankan/build dengan --dart-define=APPCHECK_DEBUG_TOKEN=
-/// (kosong) agar memakai Play Integrity / DeviceCheck / reCAPTCHA asli.
+
 const String _debugToken = String.fromEnvironment(
   'APPCHECK_DEBUG_TOKEN',
   defaultValue: 'f18287f2-a0bd-476e-9770-8dcabe3aaec4',
@@ -27,10 +11,7 @@ const String _debugToken = String.fromEnvironment(
 
 const String _recaptchaSiteKey = String.fromEnvironment('RECAPTCHA_SITE_KEY');
 
-/// Dipanggil SEKALI di main(), setelah Firebase.initializeApp().
-///
-/// Tidak pernah melempar error: kalau gagal, aplikasi tetap jalan dan fitur AI
-/// akan menampilkan pesan yang jelas saat dipakai.
+
 Future<void> initAppCheck() async {
   final useDebug = _debugToken.isNotEmpty;
 
@@ -51,14 +32,22 @@ Future<void> initAppCheck() async {
         )
         .timeout(const Duration(seconds: 8));
     debugPrint('[AppCheck] aktif (${useDebug ? "debug token tetap" : "provider asli"}).');
+
+
+    unawaited(
+      FirebaseAppCheck.instance
+          .getToken()
+          .timeout(const Duration(seconds: 10))
+          .then<void>((_) {})
+          .catchError((Object e) {
+        debugPrint('[AppCheck] pemanasan token gagal: $e');
+      }),
+    );
   } catch (e) {
     debugPrint('[AppCheck] gagal diaktifkan: $e');
   }
 }
 
-/// Diagnosa cepat (hanya dipakai saat debug): apakah App Check bisa
-/// menghasilkan token? Jika ini timeout/gagal, penyebab "AI timeout" adalah
-/// App Check (debug token belum didaftarkan), bukan model Gemini.
 Future<String> probeAppCheck() async {
   try {
     final token = await FirebaseAppCheck.instance

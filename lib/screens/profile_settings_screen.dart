@@ -118,9 +118,7 @@ class ProfileSettingsScreen extends StatelessWidget {
                     _MenuTile(
                       icon: Icons.restart_alt_outlined,
                       title: 'Reset Semua Data',
-                      subtitle: (auth.currentUser?.isDemo ?? false)
-                          ? 'Kembalikan aplikasi ke data contoh awal'
-                          : 'Hapus semua catatan dan mulai dari kosong',
+                      subtitle: 'Hapus semua catatan dan mulai dari kosong',
                       iconColor: FlundsColors.expense,
                       onTap: () => _confirmReset(context),
                     ),
@@ -179,10 +177,8 @@ class ProfileSettingsScreen extends StatelessWidget {
     final confirmed = await showConfirmDialog(
       context,
       title: 'Reset semua data?',
-      message: (auth.currentUser?.isDemo ?? false)
-          ? 'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus dan '
-          'dikembalikan ke data contoh awal. Tindakan ini tidak bisa dibatalkan.'
-          : 'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus. '
+      message:
+          'Semua transaksi, utang/piutang, target menabung, dan kategori yang sudah kamu tambahkan akan dihapus. '
           'Tindakan ini tidak bisa dibatalkan.',
       confirmLabel: 'Reset',
     );
@@ -342,7 +338,6 @@ class _AccountChip extends StatelessWidget {
 
     final label = switch (user?.kind) {
       AccountKind.guest => 'Mode tamu',
-      AccountKind.demo => 'Akun demo',
       _ => user?.email ?? '',
     };
 
@@ -446,17 +441,15 @@ class _SettingsFormState extends State<_SettingsForm> {
     });
 
     try {
-      if (auth.currentUser?.kind == AccountKind.member) {
-        await auth.updateProfile(
-          name: name,
-          businessName: businessName,
-          businessType: businessType,
-          startingBalance: startingBalance,
-          runwayThresholdDays: runwayThresholdDays,
-          ownerCutPercentage: _percentage,
-          taxEstimateEnabled: _taxEstimateEnabled,
-        );
-      }
+      await auth.updateProfile(
+        name: name,
+        businessName: businessName,
+        businessType: businessType,
+        startingBalance: startingBalance,
+        runwayThresholdDays: runwayThresholdDays,
+        ownerCutPercentage: _percentage,
+        taxEstimateEnabled: _taxEstimateEnabled,
+      );
 
       appData.updateProfile(
         ownerName: name,
@@ -472,11 +465,7 @@ class _SettingsFormState extends State<_SettingsForm> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            auth.currentUser?.kind == AccountKind.member
-                ? 'Profil berhasil disimpan ke Firebase'
-                : 'Pengaturan berhasil disimpan',
-          ),
+          content: const Text('Profil berhasil disimpan ke Firebase'),
         ),
       );
 

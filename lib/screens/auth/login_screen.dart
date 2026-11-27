@@ -49,8 +49,12 @@ class _LoginScreenState extends State<LoginScreen> {
       _busy = _Busy.guest;
       _error = null;
     });
-    await auth.continueAsGuest();
-    if (mounted) setState(() => _busy = _Busy.none);
+    final error = await auth.continueAsGuest();
+    if (!mounted) return;
+    setState(() {
+      _busy = _Busy.none;
+      _error = error;
+    });
   }
 
   @override

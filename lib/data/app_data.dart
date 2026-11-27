@@ -80,6 +80,7 @@ class AppData extends ChangeNotifier {
     try {
       final cats = await repo.loadCategories();
       final txs = await repo.loadTransactions();
+      final debts = await repo.loadDebts();
 
       if (cats.isEmpty) {
         // Akun baru / belum pernah tersimpan: pakai kategori default
@@ -95,6 +96,10 @@ class AppData extends ChangeNotifier {
         ..clear()
         ..addAll(txs);
 
+      _debts
+        ..clear()
+        ..addAll(debts);
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -109,6 +114,7 @@ class AppData extends ChangeNotifier {
     _sync((r) async {
       await r.saveCategories(_categories);
       await r.saveTransactions(_transactions);
+      await r.saveDebts(_debts);
     });
   }
 
@@ -118,6 +124,7 @@ class AppData extends ChangeNotifier {
       await r.clearAll();
       await r.saveCategories(_categories);
       await r.saveTransactions(_transactions);
+      await r.saveDebts(_debts);
     });
   }
 
@@ -850,6 +857,7 @@ class AppData extends ChangeNotifier {
     );
 
     _debts.add(item);
+    _sync((r) => r.saveDebt(item));
     notifyListeners();
 
     return item;
@@ -864,6 +872,8 @@ class AppData extends ChangeNotifier {
       partyName: updated.partyName.trim(),
       note: updated.note.trim(),
     );
+    final saved = _debts[index];
+    _sync((r) => r.saveDebt(saved));
     notifyListeners();
     return true;
   }
@@ -881,6 +891,8 @@ class AppData extends ChangeNotifier {
           isPaid: !_debts[index].isPaid,
         );
 
+    final saved = _debts[index];
+    _sync((r) => r.saveDebt(saved));
     notifyListeners();
   }
 
@@ -895,6 +907,7 @@ class AppData extends ChangeNotifier {
         _debts.length != before;
 
     if (removed) {
+      _sync((r) => r.deleteDebt(id));
       notifyListeners();
     }
 

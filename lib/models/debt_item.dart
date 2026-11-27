@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum DebtType { payable, receivable }
 
                                                                              
@@ -23,6 +25,31 @@ class DebtItem {
     this.isPaid = false,
     this.note = '',
   });
+
+  Map<String, dynamic> toMap() => {
+        'type': type.name,
+        'partyName': partyName,
+        'amount': amount,
+        'dueDate': Timestamp.fromDate(dueDate),
+        'createdAt': Timestamp.fromDate(createdAt),
+        'isPaid': isPaid,
+        'note': note,
+      };
+
+  factory DebtItem.fromMap(String id, Map<String, dynamic> m) {
+    return DebtItem(
+      id: id,
+      type: (m['type'] as String?) == 'receivable'
+          ? DebtType.receivable
+          : DebtType.payable,
+      partyName: (m['partyName'] as String?) ?? '',
+      amount: (m['amount'] as num?)?.toInt() ?? 0,
+      dueDate: (m['dueDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isPaid: (m['isPaid'] as bool?) ?? false,
+      note: (m['note'] as String?) ?? '',
+    );
+  }
 
   bool get isReceivable => type == DebtType.receivable;
 

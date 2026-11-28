@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../ai/ai_context.dart';
 import '../ai/ai_service.dart';
+import '../ai/local_advisor.dart';
 import '../data/app_data.dart';
 import '../theme/app_theme.dart';
 
@@ -85,6 +86,40 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   void _retry() {
     if (_loading || _messages.isEmpty || !_messages.last.fromUser) return;
     _run();
+  }
+
+  /// Menghentikan permintaan yang sedang berjalan. Jawaban yang sudah
+  /// sempat tampil tetap disimpan.
+  void _stop() {
+    if (!_loading) return;
+    _runId++; // hasil permintaan lama diabaikan
+    final partial = _streaming;
+    setState(() {
+      if (partial != null && partial.trim().isNotEmpty) {
+        _messages.add(AiMessage(fromUser: false, text: partial));
+      } else {
+        _error = 'Dihentikan. Ketuk "Coba lagi" untuk mengirim ulang.';
+      }
+      _streaming = null;
+      _loading = false;
+    });
+  }
+
+  /// Jawaban dari data perangkat ketika AI online tidak tersedia.
+  void _answerOffline() {
+    if (_loading || _messages.isEmpty || !_messages.last.fromUser) return;
+    final reply = LocalAdvisor.answer(appData, _messages.last.text);
+    setState(() {
+      _messages.add(
+        AiMessage(
+          fromUser: false,
+          text: '${LocalAdvisor.offlineLabel} (dihitung dari datamu, '
+              'bukan dari AI online):\n$reply',
+        ),
+      );
+      _error = null;
+    });
+    _scrollToEnd();
   }
 
   Future<void> _run() async {
@@ -188,6 +223,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                           return _ErrorBubble(
                             message: _error!,
                             onRetry: _retry,
+                            onOffline: _answerOffline,
                           );
                         }
                         return const _TypingBubble();
@@ -198,6 +234,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               controller: _controller,
               enabled: !_loading,
               onSend: () => _send(_controller.text),
+              onStop: _stop,
             ),
           ],
         ),
@@ -335,12 +372,24 @@ class _TypingBubble extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             SizedBox(width: 10),
-            Text(
-              'Sedang menganalisis…',
-              style: TextStyle(fontSize: 12.5, color: FlundsColors.textMuted),
-            ),
+            _TypingLabel(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TypingLabel extends StatelessWidget {
+  const _TypingLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: AiService.instance.status,
+      builder: (_, value, _) => Text(
+        value ?? 'Sedang menganalisis…',
+        style: const TextStyle(fontSize: 12.5, color: FlundsColors.textMuted),
       ),
     );
   }
@@ -350,11 +399,13 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final VoidCallback onSend;
+  final VoidCallback onStop;
 
   const _InputBar({
     required this.controller,
     required this.enabled,
     required this.onSend,
+    required this.onStop,
   });
 
   @override
@@ -390,12 +441,15 @@ class _InputBar extends StatelessWidget {
             ),
           ),
           IconButton.filled(
-            onPressed: enabled ? onSend : null,
+            tooltip: enabled ? 'Kirim' : 'Hentikan',
+            onPressed: enabled ? onSend : onStop,
             style: IconButton.styleFrom(
               backgroundColor: FlundsColors.accent,
               foregroundColor: Colors.white,
             ),
-            icon: const Icon(Icons.arrow_upward_rounded),
+            icon: Icon(
+              enabled ? Icons.arrow_upward_rounded : Icons.stop_rounded,
+            ),
           ),
         ],
       ),
@@ -418,8 +472,13 @@ class _InputBar extends StatelessWidget {
 class _ErrorBubble extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
+  final VoidCallback onOffline;
 
-  const _ErrorBubble({required this.message, required this.onRetry});
+  const _ErrorBubble({
+    required this.message,
+    required this.onRetry,
+    required this.onOffline,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -446,11 +505,22 @@ class _ErrorBubble extends StatelessWidget {
                 color: FlundsColors.expense,
               ),
             ),
-            TextButton.icon(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(minimumSize: const Size(0, 36)),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Coba lagi'),
+            Wrap(
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: onRetry,
+                  style: TextButton.styleFrom(minimumSize: const Size(0, 36)),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Coba lagi'),
+                ),
+                TextButton.icon(
+                  onPressed: onOffline,
+                  style: TextButton.styleFrom(minimumSize: const Size(0, 36)),
+                  icon: const Icon(Icons.insights_outlined, size: 16),
+                  label: const Text('Jawab dari data'),
+                ),
+              ],
             ),
           ],
         ),

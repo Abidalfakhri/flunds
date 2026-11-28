@@ -27,62 +27,72 @@ class AiMessage {
   });
 }
 
-/// Firebase AI Logic (Gemini Developer API).
-///
-/// Perbedaan utama dari versi sebelumnya:
-/// - Thinking dibatasi (LOW). Gemini 3.x Flash secara default "berpikir"
-///   panjang; itu yang membuat respons lambat dan memakan jatah token.
-/// - Memakai streaming: teks tampil bertahap, dan timeout dihitung per-chunk
-///   (bukan 40 detik menunggu satu respons utuh).
-/// - App Check diaktifkan di main(), bukan di dalam permintaan pertama.
+/// Jenis kegagalan, menentukan apa yang dilakukan selanjutnya.
+enum _Kind {
+  timeout, // model terlalu lama -> coba model berikutnya
+  transient, // 5xx / sibuk -> retry sekali, lalu model berikutnya
+  quota, // kuota model ini habis -> model berikutnya (kuota terpisah)
+  modelGone, // 404 / model dimatikan -> model berikutnya
+  badRequest, // 400 (mis. level thinking ditolak) -> model berikutnya
+  offline, // tidak ada internet -> berhenti
+  appCheck, // App Check menolak -> berhenti
+  region, // wilayah tidak didukung -> berhenti
+  denied, // 403 / API belum aktif -> berhenti
+  blocked, // diblokir filter keamanan -> berhenti
+}
+
+bool _isFatal(_Kind k) =>
+    k == _Kind.offline ||
+    k == _Kind.appCheck ||
+    k == _Kind.region ||
+    k == _Kind.denied ||
+    k == _Kind.blocked;
+
+class _EmptyAnswer implements Exception {
+  const _EmptyAnswer();
+}
+
+class _ModelSpec {
+  final String name;
+  final String label;
+  final ThinkingLevel? thinking;
+  final Duration firstChunkTimeout;
+
+  _ModelSpec(this.name, this.label, this.thinking, this.firstChunkTimeout);
+}
+
 class AiService {
   AiService._();
 
   static final AiService instance = AiService._();
 
-  /// gemini-3.8-flash tidak mendukung thinking level MINIMAL (error 400),
-  /// jadi level terendah yang dipakai adalah LOW.
-  static const String modelName = 'gemini-3.8-flash';
+  static const String _modelOverride = String.fromEnvironment('AI_MODEL');
 
-  // Menunggu chunk pertama (termasuk waktu thinking + App Check token).
-  static const Duration _firstChunkTimeout = Duration(seconds: 25);
+  static final List<_ModelSpec> _chain = [
+    if (_modelOverride.isNotEmpty)
+      _ModelSpec(_modelOverride, _modelOverride, ThinkingLevel.low,
+          const Duration(seconds: 15)),
+    _ModelSpec('gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite', null,
+        const Duration(seconds: 12)),
+    _ModelSpec('gemini-3.8-flash', 'Gemini 3.8 Flash', ThinkingLevel.low,
+        const Duration(seconds: 18)),
+    _ModelSpec('gemini-4-hydrogen', 'Gemini 4 Hydrogen', ThinkingLevel.low,
+        const Duration(seconds: 20)),
+  ];
 
-  // Jeda maksimal antar chunk setelah teks mulai mengalir.
+
   static const Duration _idleTimeout = Duration(seconds: 15);
 
-  // 1 percobaan awal + retry untuk gangguan server sementara.
-  static const int _maxAttempts = 3;
 
-  // Thinking token ikut dihitung dalam batas ini, jadi jangan terlalu kecil.
-  static const int _maxOutputTokens = 2048;
+  static const Duration _totalBudget = Duration(seconds: 55);
 
-  // ============================================================
-  // MODEL
-  // ============================================================
 
-  GenerativeModel _model({
-    required String systemInstruction,
-    bool json = false,
-  }) {
-    return FirebaseAI.googleAI().generativeModel(
-      model: modelName,
-      systemInstruction: Content.system(systemInstruction),
-      generationConfig: GenerationConfig(
-        maxOutputTokens: _maxOutputTokens,
-        responseMimeType: json ? 'application/json' : null,
-        thinkingConfig: ThinkingConfig.withThinkingLevel(ThinkingLevel.low),
-      ),
-    );
-  }
+  static const int _maxOutputTokens = 4096;
 
-  // ============================================================
-  // API PUBLIK
-  // ============================================================
+  final ValueNotifier<String?> status = ValueNotifier<String?>(null);
 
-  /// Chat multi-giliran dengan streaming. Setiap event adalah TEKS LENGKAP
-  /// sejauh ini (bukan potongan), jadi UI cukup mengganti teks bubble.
-  ///
-  /// Riwayat harus berakhir dengan pesan dari pengguna.
+  String? lastModelLabel;
+
   Stream<String> chatStream({
     required List<AiMessage> history,
     required String systemInstruction,
@@ -109,7 +119,7 @@ class AiService {
     ];
 
     yield* _generateStream(
-      model: _model(systemInstruction: systemInstruction),
+      systemInstruction: systemInstruction,
       contents: contents,
     );
   }
@@ -157,10 +167,11 @@ class AiService {
     }
     final raw = await _collect(
       _generateStream(
-        model: _model(systemInstruction: systemInstruction, json: true),
+        systemInstruction: systemInstruction,
         contents: [
           Content('user', [TextPart(prompt)]),
         ],
+        json: true,
       ),
     );
     return _parseJson(raw);
@@ -191,25 +202,56 @@ class AiService {
     return last;
   }
 
-  /// Satu permintaan streaming dengan timeout per-chunk.
+  GenerativeModel _buildModel(
+    _ModelSpec spec,
+    String systemInstruction,
+    bool json,
+  ) {
+    final level = spec.thinking;
+    return FirebaseAI.googleAI().generativeModel(
+      model: spec.name,
+      systemInstruction: Content.system(systemInstruction),
+      generationConfig: GenerationConfig(
+        maxOutputTokens: _maxOutputTokens,
+        responseMimeType: json ? 'application/json' : null,
+        thinkingConfig:
+            level == null ? null : ThinkingConfig.withThinkingLevel(level),
+      ),
+    );
+  }
+
+  /// Satu permintaan streaming ke satu model, dengan timeout per-chunk.
   Stream<String> _streamOnce(
-    GenerativeModel model,
+    _ModelSpec spec,
+    String systemInstruction,
     List<Content> contents,
+    bool json,
   ) async* {
     final stopwatch = Stopwatch()..start();
+    final model = _buildModel(spec, systemInstruction, json);
     final iterator = StreamIterator(model.generateContentStream(contents));
     final buffer = StringBuffer();
     var first = true;
 
     try {
       while (true) {
-        final hasNext = await iterator
-            .moveNext()
-            .timeout(first ? _firstChunkTimeout : _idleTimeout);
+        bool hasNext;
+        try {
+          hasNext = await iterator
+              .moveNext()
+              .timeout(first ? spec.firstChunkTimeout : _idleTimeout);
+        } on TimeoutException {
+          if (first) rethrow;
+          // Teks sudah mulai tampil lalu macet: tampilkan apa yang ada
+          // daripada membuang jawaban setengah jadi.
+          debugPrint('[AI] ${spec.name} macet di tengah jawaban, '
+              'memakai teks yang sudah ada.');
+          break;
+        }
         if (!hasNext) break;
 
         if (first) {
-          debugPrint('[AI] chunk pertama setelah '
+          debugPrint('[AI] ${spec.name}: chunk pertama setelah '
               '${stopwatch.elapsedMilliseconds} ms.');
           first = false;
         }
@@ -222,55 +264,67 @@ class AiService {
       }
     } finally {
       // Tidak di-await: jika koneksi macet, cancel() tidak boleh ikut
-      // menahan error timeout agar tidak sampai ke pengguna.
+      // menahan error timeout.
       unawaited(iterator.cancel().catchError((_) {}));
     }
 
-    debugPrint('[AI] selesai dalam ${stopwatch.elapsedMilliseconds} ms.');
+    debugPrint('[AI] ${spec.name}: selesai dalam '
+        '${stopwatch.elapsedMilliseconds} ms.');
 
     if (buffer.toString().trim().isEmpty) {
-      throw const AiException(
-        'AI tidak memberikan jawaban. Silakan coba pertanyaan lain.',
-      );
+      throw const _EmptyAnswer();
     }
   }
 
-  /// Streaming + retry untuk gangguan server sementara. Retry hanya
-  /// dilakukan selama belum ada teks yang sampai ke pengguna.
+  /// Streaming dengan rantai model cadangan. Pindah model hanya dilakukan
+  /// selama belum ada teks yang sampai ke pengguna.
   Stream<String> _generateStream({
-    required GenerativeModel model,
+    required String systemInstruction,
     required List<Content> contents,
+    bool json = false,
   }) async* {
-    for (var attempt = 1;; attempt++) {
-      var received = false;
-      try {
-        await for (final text in _streamOnce(model, contents)) {
-          received = true;
-          yield text;
-        }
-        return;
-      } on AiException {
-        rethrow;
-      } on TimeoutException {
-        debugPrint('[AI] timeout (percobaan $attempt).');
-        final hint = kDebugMode ? '\n[debug] ${await probeAppCheck()}' : '';
-        throw AiException(
-          'AI terlalu lama merespons. Periksa koneksi internet lalu '
-          'coba lagi.$hint',
-        );
-      } on FirebaseAIException catch (e) {
-        debugPrint('[AI] FirebaseAIException '
-            '(percobaan $attempt/$_maxAttempts): ${e.message}');
+    final total = Stopwatch()..start();
+    var lastKind = _Kind.transient;
 
-        if (!received && attempt < _maxAttempts && _isRetryable(e.message)) {
-          await Future.delayed(Duration(milliseconds: 1000 * attempt));
-          continue;
+    try {
+      for (var i = 0; i < _chain.length; i++) {
+        final spec = _chain[i];
+        if (i > 0 && total.elapsed > _totalBudget) break;
+
+        status.value = i == 0 ? null : 'Mencoba ${spec.label}…';
+
+        for (var attempt = 1; attempt <= 2; attempt++) {
+          var received = false;
+          try {
+            await for (final text
+                in _streamOnce(spec, systemInstruction, contents, json)) {
+              received = true;
+              yield text;
+            }
+            lastModelLabel = spec.label;
+            return;
+          } catch (e) {
+            final kind = _classify(e);
+            debugPrint('[AI] ${spec.name} gagal '
+                '(percobaan $attempt, $kind): ${_rawMessage(e)}');
+
+            if (received || _isFatal(kind)) {
+              throw AiException(await _messageFor(kind));
+            }
+
+            lastKind = kind;
+            if (kind == _Kind.transient && attempt == 1) {
+              await Future.delayed(const Duration(milliseconds: 800));
+              continue; // coba model yang sama sekali lagi
+            }
+            break; // pindah ke model berikutnya
+          }
         }
-        throw AiException(_describe(e.message));
-      } catch (e) {
-        debugPrint('[AI] error tidak terduga: $e');
-        throw AiException(_describe(e.toString()));
       }
+
+      throw AiException(await _messageFor(lastKind));
+    } finally {
+      status.value = null;
     }
   }
 
@@ -302,97 +356,106 @@ class AiService {
     );
   }
 
-  // ============================================================
+
   // KLASIFIKASI ERROR
-  // ============================================================
+ 
 
-  bool _isQuota(String m) =>
-      m.contains('quota') ||
-      m.contains('resource_exhausted') ||
-      m.contains('daily limit') ||
-      m.contains('limit exceeded');
-
-  bool _isRetryable(String message) {
-    final m = message.toLowerCase();
-    if (_isQuota(m)) return false;
-
-    return m.contains('500') ||
-        m.contains('502') ||
-        m.contains('503') ||
-        m.contains('504') ||
-        m.contains('internal') ||
-        m.contains('unavailable') ||
-        m.contains('deadline') ||
-        m.contains('high demand') ||
-        m.contains('overloaded') ||
-        m.contains('server error') ||
-        m.contains('try again');
+  String _rawMessage(Object e) {
+    if (e is FirebaseAIException) return e.message;
+    return e.toString();
   }
 
-  String _describe(String message) {
-    final m = message.toLowerCase();
+  _Kind _classify(Object e) {
+    if (e is TimeoutException) return _Kind.timeout;
+    if (e is _EmptyAnswer) return _Kind.transient;
 
-    if (m.contains('socket') ||
-        m.contains('failed host lookup') ||
-        m.contains('network') ||
-        m.contains('connection')) {
-      return 'Tidak dapat terhubung ke internet. '
-          'Periksa koneksi lalu coba lagi.';
+    final m = _rawMessage(e).toLowerCase();
+
+    if (m.contains('failed host lookup') ||
+        m.contains('network is unreachable') ||
+        m.contains('no address associated')) {
+      return _Kind.offline;
     }
     if (m.contains('app check') ||
         m.contains('app-check') ||
         m.contains('appcheck') ||
         m.contains('attestation')) {
-      if (kDebugMode) {
-        return 'App Check menolak token (HTTP 403). Pastikan debug token di '
-            'lib/ai/app_check_setup.dart sudah didaftarkan di Firebase '
-            'Console > App Check > Manage debug tokens (di app yang sama: '
-            'web / Android).';
-      }
-      return 'Verifikasi keamanan aplikasi gagal. '
-          'Pastikan aplikasi dipasang dari sumber resmi lalu coba lagi.';
+      return _Kind.appCheck;
     }
     if (m.contains('location') && m.contains('not supported')) {
-      return 'Fitur AI belum tersedia di wilayah Anda.';
+      return _Kind.region;
     }
-    if (_isQuota(m)) {
-      return 'Layanan AI sedang mencapai batas penggunaan. '
-          'Silakan coba lagi nanti.';
-    }
-    if (m.contains('429') ||
+    if (m.contains('quota') ||
+        m.contains('resource_exhausted') ||
+        m.contains('daily limit') ||
+        m.contains('limit exceeded') ||
+        m.contains('429') ||
         m.contains('rate limit') ||
         m.contains('too many requests')) {
-      return 'Permintaan AI terlalu sering. Tunggu sebentar lalu coba lagi.';
+      return _Kind.quota;
+    }
+    if (m.contains('404') ||
+        m.contains('not found') ||
+        m.contains('no longer available') ||
+        m.contains('shut down')) {
+      return _Kind.modelGone;
     }
     if (m.contains('403') ||
         m.contains('permission denied') ||
         m.contains('api key') ||
         m.contains('not authorized') ||
         m.contains('has not been used') ||
+        m.contains('api not enabled') ||
         m.contains('disabled')) {
-      return 'Akses ke layanan AI ditolak. '
-          'Periksa konfigurasi Firebase AI Logic.';
-    }
-    if (m.contains('404') || m.contains('not found')) {
-      return 'Model AI tidak ditemukan. Periksa nama model di konfigurasi.';
-    }
-    if (m.contains('500') ||
-        m.contains('502') ||
-        m.contains('503') ||
-        m.contains('504') ||
-        m.contains('internal') ||
-        m.contains('high demand') ||
-        m.contains('overloaded') ||
-        m.contains('unavailable') ||
-        m.contains('server error')) {
-      return 'Server AI sedang sibuk. Silakan coba lagi beberapa saat.';
+      return _Kind.denied;
     }
     if (m.contains('400') ||
         m.contains('invalid_argument') ||
         m.contains('bad request')) {
-      return 'Permintaan AI tidak dapat diproses. Silakan coba lagi.';
+      return _Kind.badRequest;
     }
+    if (m.contains('safety') || m.contains('blocked')) {
+      return _Kind.blocked;
+    }
+    // 5xx, unavailable, overloaded, error tak dikenal: perlakukan sementara.
+    return _Kind.transient;
+  }
 
-    return 'Terjadi kendala saat menghubungi AI. Silakan coba lagi.';
+  Future<String> _messageFor(_Kind kind) async {
+    switch (kind) {
+      case _Kind.timeout:
+        final hint = kDebugMode ? '\n[debug] ${await probeAppCheck()}' : '';
+        return 'AI belum merespons setelah mencoba beberapa model. '
+            'Periksa koneksi internet lalu coba lagi.$hint';
+      case _Kind.transient:
+        return 'Server AI sedang sibuk. Silakan coba lagi beberapa saat.';
+      case _Kind.quota:
+        return 'Layanan AI sedang mencapai batas penggunaan. '
+            'Silakan coba lagi nanti.';
+      case _Kind.modelGone:
+        return 'Model AI tidak tersedia. Perbarui aplikasi atau periksa '
+            'nama model di konfigurasi.';
+      case _Kind.badRequest:
+        return 'Permintaan AI tidak dapat diproses. Silakan coba lagi.';
+      case _Kind.offline:
+        return 'Tidak dapat terhubung ke internet. '
+            'Periksa koneksi lalu coba lagi.';
+      case _Kind.appCheck:
+        if (kDebugMode) {
+          return 'App Check menolak token (HTTP 403). Pastikan debug token '
+              'di lib/ai/app_check_setup.dart sudah didaftarkan di '
+              'Firebase Console > App Check > Manage debug tokens.';
+        }
+        return 'Verifikasi keamanan aplikasi gagal. '
+            'Pastikan aplikasi dipasang dari sumber resmi lalu coba lagi.';
+      case _Kind.region:
+        return 'Fitur AI belum tersedia di wilayah Anda.';
+      case _Kind.denied:
+        return 'Akses ke layanan AI ditolak. Pastikan Firebase AI Logic '
+            '(Gemini Developer API) sudah diaktifkan di Firebase Console.';
+      case _Kind.blocked:
+        return 'Pertanyaan ini tidak dapat dijawab oleh AI. '
+            'Coba ubah kalimatnya.';
+    }
   }
 }

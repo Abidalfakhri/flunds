@@ -159,3 +159,21 @@ Simulasi membantu pengguna memahami perubahan saldo kas dan potensi perubahan ca
 ## Status Project
 
 Flunds dikembangkan secara bertahap dengan fokus pada pengelolaan keuangan UMKM, integrasi backend Firebase, dan pemanfaatan AI untuk membantu analisis kondisi keuangan usaha.
+## Catatan Fitur AI
+
+- Rantai model otomatis: `gemini-3.5-flash-lite` -> `gemini-3.8-flash` -> `gemini-4-hydrogen`
+  (semua stable dan tidak butuh billing). Jika satu model lambat, kuotanya habis, atau
+  dimatikan, aplikasi pindah ke model berikutnya.
+- Jika semua model gagal, kartu analisis dan chat memakai analisis offline
+  (`lib/ai/local_advisor.dart`) yang dihitung dari data di perangkat.
+- Ganti model utama tanpa mengubah kode:
+  `flutter build apk --release --dart-define=AI_MODEL=gemini-3.8-flash`
+- Debug token App Check harus terdaftar di Firebase Console > App Check > Manage debug tokens.
+
+## Build APK
+
+```bash
+flutter pub get
+flutter build apk --release
+# hasil: build/app/outputs/flutter-apk/app-release.apk
+```
